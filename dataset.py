@@ -84,8 +84,18 @@ class CoData(data.Dataset):
                 image = self.images_loaded[idx]
                 label = self.labels_loaded[idx]
             else:
-                image = Image.open(image_paths[idx]).convert('RGB')
-                label = Image.open(label_paths[idx]).convert('L')
+                if os.path.exists(image_paths[idx]):
+                    image = Image.open(image_paths[idx]).convert('RGB')
+                elif os.path.exists(image_paths[idx].replace('.png', '.jpg')):
+                    image = Image.open(image_paths[idx].replace('.png', '.jpg')).convert('RGB')
+                else:
+                    print('Wrong image path:', image_paths[idx])
+                if os.path.exists(label_paths[idx]):
+                    label = Image.open(label_paths[idx]).convert('L')
+                elif os.path.exists(label_paths[idx].replace('.png', '.jpg')):
+                    label = Image.open(label_paths[idx].replace('.png', '.jpg')).convert('L')
+                else:
+                    print('Wrong label path:', label_paths[idx])
 
             subpaths.append(os.path.join(image_paths[idx].split('/')[-2], image_paths[idx].split('/')[-1][:-4]+'.png'))
             ori_sizes.append((image.size[1], image.size[0]))

@@ -1,3 +1,15 @@
+# Custom
+.vscode
+ckpt
+preds
+evaluation/output
+evaluation/gconet_*
+evaluation/good_ones
+*.out
+tmp*
+*.pth
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

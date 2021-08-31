@@ -20,7 +20,7 @@ class Eval_thread():
         self.output_dir = output_dir
         self.epoch = epoch.split('ep')[-1]
         self.logfile = os.path.join(output_dir, 'result.txt')
-        self.dataset2smeasure_bottom_bound = {'CoCA': 0.673, 'CoSOD3k': 0.802, 'CoSal2015': 0.845}      # S_measures of GCoNet
+        self.dataset2smeasure_bottom_bound = {'CoCA': 0.680, 'CoSOD3k': 0.825, 'CoSal2015': 0.875}      # S_measures >> GCoNet
 
     def run(self, AP=False, AUC=False, save_metrics=False, continue_eval=True):
         Res = {}
