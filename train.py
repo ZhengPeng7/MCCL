@@ -68,7 +68,7 @@ config = Config()
 
 # Prepare dataset
 if args.trainset == 'DUTS_class':
-    root_dir = '../../../datasets/sod'
+    root_dir = '/home/pz1/datasets/sod'
     train_img_path = os.path.join(root_dir, 'images/DUTS_class')
     train_gt_path = os.path.join(root_dir, 'gts/DUTS_class')
     train_loader = get_loader(train_img_path,
@@ -100,7 +100,7 @@ else:
 test_loaders = {}
 for testset in args.testsets.split('+'):
     test_loader = get_loader(
-        os.path.join('../../../datasets/sod', 'images', testset), os.path.join('../../../datasets/sod', 'gts', testset),
+        os.path.join('/home/pz1/datasets/sod', 'images', testset), os.path.join('/home/pz1/datasets/sod', 'gts', testset),
         args.size, 1, istrain=False, shuffle=False, num_workers=8, pin=True
     )
     test_loaders[testset] = test_loader

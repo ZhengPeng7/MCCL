@@ -27,7 +27,7 @@ def main(args):
 
     for testset in args.testsets.split('+'):
         print('Testing {}...'.format(testset))
-        root_dir = '../../../datasets/sod'
+        root_dir = '/home/pz1/datasets/sod'
         if testset == 'CoCA':
             test_img_path = os.path.join(root_dir, 'images/CoCA')
             test_gt_path = os.path.join(root_dir, 'gts/CoCA')

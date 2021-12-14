@@ -133,16 +133,3 @@ def get_loader(img_root, gt_root, img_size, batch_size, max_num = float('inf'), 
     data_loader = data.DataLoader(dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
                                   pin_memory=pin)
     return data_loader
-
-
-if __name__ == '__main__':
-    img_root = '/disk2TB/co-saliency/Dataset/CoSal2015/Image'
-    gt_root = '/disk2TB/co-saliency/Dataset/CoSal2015/GT'
-    loader = get_loader(img_root, gt_root, 224, 1)
-    for img, gt, subpaths, ori_sizes in loader:
-        # print(img.size())
-        # print(gt.size())
-        print(subpaths)
-        # print(ori_sizes)
-        print(ori_sizes[0][0].item())
-        break
