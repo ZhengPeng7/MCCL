@@ -1,6 +1,5 @@
 import os
 import argparse
-from tqdm import tqdm
 import torch
 from torch import nn
 
@@ -27,7 +26,7 @@ def main(args):
 
     for testset in args.testsets.split('+'):
         print('Testing {}...'.format(testset))
-        root_dir = '/home/pz1/datasets/sod'
+        root_dir = '../../../datasets/sod'
         if testset == 'CoCA':
             test_img_path = os.path.join(root_dir, 'images/CoCA')
             test_gt_path = os.path.join(root_dir, 'gts/CoCA')
@@ -47,7 +46,7 @@ def main(args):
         test_loader = get_loader(
             test_img_path, test_gt_path, args.size, 1, istrain=False, shuffle=False, num_workers=8, pin=True)
 
-        for batch in tqdm(test_loader):
+        for batch in test_loader:
             inputs = batch[0].to(device).squeeze(0)
             gts = batch[1].to(device).squeeze(0)
             subpaths = batch[2]
@@ -84,7 +83,7 @@ if __name__ == '__main__':
                         type=int,
                         help='input size')
     parser.add_argument('--ckpt', default='./ckpt/gconet/final.pth', type=str, help='model folder')
-    parser.add_argument('--pred_dir', default='/home/pz1/datasets/sod/preds/GCoNet_ext', type=str, help='Output folder')
+    parser.add_argument('--pred_dir', default='/root/autodl-tmp/datasets/sod/preds/GCoNet_ext', type=str, help='Output folder')
 
     args = parser.parse_args()
 

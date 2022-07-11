@@ -20,9 +20,6 @@ from config import Config
 from loss import saliency_structure_consistency, DSLoss
 from util import generate_smoothed_gt
 
-from evaluation.dataloader import EvalDataset
-from evaluation.evaluator import Eval_thread
-
 from models.GCoNet import GCoNet
 
 
@@ -44,7 +41,7 @@ parser.add_argument('--start_epoch',
 parser.add_argument('--trainset',
                     default='Jigsaw2_DUTS',
                     type=str,
-                    help="Options: 'Jigsaw2_DUTS', 'DUTS_class'")
+                    help="Options: 'DUTS_class'")
 parser.add_argument('--size',
                     default=224,
                     type=int,
@@ -56,11 +53,6 @@ parser.add_argument('--testsets',
                     type=str,
                     help="Options: 'CoCA','CoSal2015','CoSOD3k','iCoseg','MSRC'")
 
-parser.add_argument('--val_dir',
-                    default='tmp4val',
-                    type=str,
-                    help="Dir for saving tmp results for validation.")
-
 args = parser.parse_args()
 
 
@@ -68,7 +60,7 @@ config = Config()
 
 # Prepare dataset
 if args.trainset == 'DUTS_class':
-    root_dir = '/home/pz1/datasets/sod'
+    root_dir = '/root/autodl-tmp/datasets/sod'
     train_img_path = os.path.join(root_dir, 'images/DUTS_class')
     train_gt_path = os.path.join(root_dir, 'gts/DUTS_class')
     train_loader = get_loader(train_img_path,
@@ -100,7 +92,7 @@ else:
 test_loaders = {}
 for testset in args.testsets.split('+'):
     test_loader = get_loader(
-        os.path.join('/home/pz1/datasets/sod', 'images', testset), os.path.join('/home/pz1/datasets/sod', 'gts', testset),
+        os.path.join('../../../datasets/sod', 'images', testset), os.path.join('../../../datasets/sod', 'gts', testset),
         args.size, 1, istrain=False, shuffle=False, num_workers=8, pin=True
     )
     test_loaders[testset] = test_loader
@@ -113,6 +105,8 @@ os.makedirs(args.ckpt_dir, exist_ok=True)
 
 # Init log file
 logger = Logger(os.path.join(args.ckpt_dir, "log.txt"))
+logger_loss_file = os.path.join(args.ckpt_dir, "log_loss.txt")
+logger_loss_idx = 1
 
 # Init model
 device = torch.device("cuda")
@@ -122,7 +116,7 @@ model = model.to(device)
 if config.lambda_adv:
     from adv import Discriminator
     disc = Discriminator(channels=1, img_size=args.size).to(device)
-    optimizer_d = optim.Adam(params=disc.parameters(), lr=config.lr, betas=[0.9, 0.99])
+    optimizer_d = optim.Adam(params=disc.parameters(), lr=config.lr, weight_decay=0)
     Tensor = torch.cuda.FloatTensor if (True if torch.cuda.is_available() else False) else torch.FloatTensor
     adv_criterion = nn.BCELoss()
 
@@ -133,7 +127,10 @@ base_params = filter(lambda p: id(p) not in backbone_params,
 all_params = [{'params': base_params}, {'params': model.bb.parameters(), 'lr': config.lr * 0.01}]
 
 # Setting optimizer
-optimizer = optim.Adam(params=all_params, lr=config.lr, betas=[0.9, 0.99])
+if 'trans-' in config.bb:
+    optimizer = optim.AdamW(params=all_params, lr=config.lr, weight_decay=0)
+else:
+    optimizer = optim.Adam(params=all_params, lr=config.lr, weight_decay=0)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config.decay_step_size, gamma=0.1)
 
 # Why freeze the backbone?...
@@ -164,24 +161,12 @@ def main():
     if args.resume:
         if os.path.isfile(args.resume):
             logger.info("=> loading checkpoint '{}'".format(args.resume))
-            # checkpoint = torch.load(args.resume)
-            # args.start_epoch = checkpoint['epoch']
             model.load_state_dict(torch.load(args.resume))
-            # optimizer.load_state_dict(checkpoint['optimizer'])
-            # scheduler.load_state_dict(checkpoint['scheduler'])
-            # logger.info("=> loaded checkpoint '{}' (epoch {})".format(
-            #     args.resume, checkpoint['epoch']))
         else:
             logger.info("=> no checkpoint found at '{}'".format(args.resume))
 
     for epoch in range(args.start_epoch, args.epochs):
         train_loss = train(epoch)
-        if config.validation:
-            measures = validate(model, test_loaders, args.testsets)
-            val_measures.append(measures)
-            print('Validation: S_measure on CoCA for epoch-{} is {:.4f}. Best epoch is epoch-{} with S_measure {:.4f}'.format(
-                epoch, measures[0], np.argmax(np.array(val_measures)[:, 0].squeeze()), np.max(np.array(val_measures)[:, 0]))
-            )
         # Save checkpoint
         save_checkpoint(
             {
@@ -192,26 +177,20 @@ def main():
             path=args.ckpt_dir)
         if epoch >= args.epochs - config.val_last:
             torch.save(model.state_dict(), os.path.join(args.ckpt_dir, 'ep{}.pth'.format(epoch)))
-        if config.validation:
-            if np.max(np.array(val_measures)[:, 0].squeeze()) == measures[0]:
-                best_weights_before = [os.path.join(args.ckpt_dir, weight_file) for weight_file in os.listdir(args.ckpt_dir) if 'best_' in weight_file]
-                for best_weight_before in best_weights_before:
-                    os.remove(best_weight_before)
-                torch.save(model.state_dict(), os.path.join(args.ckpt_dir, 'best_ep{}_Smeasure{:.4f}.pth'.format(epoch, measures[0])))
+
 
 def train(epoch):
     loss_log = AverageMeter()
     loss_log_triplet = AverageMeter()
+    global logger_loss_idx
     model.train()
     FL = PTL.BinaryFocalLoss()
 
     for batch_idx, (batch, batch_seg) in enumerate(zip(train_loader, train_loader_seg)):
-
-        ########################################
         inputs = batch[0].to(device).squeeze(0)
         gts = batch[1].to(device).squeeze(0)
         cls_gts = torch.LongTensor(batch[-1]).to(device)
-
+        
         gts_neg = torch.full_like(gts, 0.0)
         gts_cat = torch.cat([gts, gts_neg], dim=0)
         return_values = model(inputs)
@@ -228,7 +207,7 @@ def train(epoch):
         elif {'sal', 'cls_mask'} == set(config.loss):
             scaled_preds, pred_cls_masks = return_values[:2]
         else:
-            scaled_preds = return_values[:1]
+            scaled_preds = return_values[0]
         norm_features = None
         if config.lambdas_sal_last['triplet']:
             norm_features = return_values[-1]
@@ -301,7 +280,7 @@ def train(epoch):
         elif {'sal', 'cls_mask'} == set(config.loss):
             scaled_preds, pred_cls_masks = return_values[:2]
         else:
-            scaled_preds = return_values[:1]
+            scaled_preds = return_values[0]
         norm_features = None
         if config.lambdas_sal_last['triplet']:
             norm_features = return_values[-1]
@@ -348,6 +327,9 @@ def train(epoch):
         loss_log.update(loss, inputs.size(0))
         if config.lambdas_sal_last['triplet']:
             loss_log_triplet.update(loss_triplet, inputs.size(0))
+        with open(logger_loss_file, 'a') as f:
+            f.write('step {}, {}\n'.format(logger_loss_idx, loss))
+        logger_loss_idx += 1
 
         optimizer.zero_grad()
         loss.backward()
@@ -389,54 +371,6 @@ def train(epoch):
 
     return loss_log.avg
 
-
-def validate(model, test_loaders, testsets):
-    model.eval()
-
-    testsets = testsets.split('+')
-    measures = []
-    for testset in testsets[:1]:
-        print('Validating {}...'.format(testset))
-        test_loader = test_loaders[testset]
-        
-        saved_root = os.path.join(args.val_dir, testset)
-
-        for batch in test_loader:
-            inputs = batch[0].to(device).squeeze(0)
-            gts = batch[1].to(device).squeeze(0)
-            subpaths = batch[2]
-            ori_sizes = batch[3]
-            with torch.no_grad():
-                scaled_preds = model(inputs)[-1]
-
-            os.makedirs(os.path.join(saved_root, subpaths[0][0].split('/')[0]), exist_ok=True)
-
-            num = len(scaled_preds)
-            for inum in range(num):
-                subpath = subpaths[inum][0]
-                ori_size = (ori_sizes[inum][0].item(), ori_sizes[inum][1].item())
-                if config.db_output_refiner or (not config.refine and config.db_output_decoder):
-                    res = nn.functional.interpolate(scaled_preds[inum].unsqueeze(0), size=ori_size, mode='bilinear', align_corners=True)
-                else:
-                    res = nn.functional.interpolate(scaled_preds[inum].unsqueeze(0), size=ori_size, mode='bilinear', align_corners=True).sigmoid()
-                save_tensor_img(res, os.path.join(saved_root, subpath))
-
-        eval_loader = EvalDataset(
-            saved_root,                                                             # preds
-            os.path.join('/home/pz1/datasets/sod/gts', testset)                     # GT
-        )
-        evaler = Eval_thread(eval_loader, cuda=True)
-        # Use S_measure for validation
-        s_measure = evaler.Eval_Smeasure()
-        if s_measure > config.val_measures['Smeasure']['CoCA'] and 0:
-            # TODO: evluate others measures if s_measure is very high.
-            e_max = evaler.Eval_Emeasure().max().item()
-            f_max = evaler.Eval_fmeasure().max().item()
-            print('Emax: {:4.f}, Fmax: {:4.f}'.format(e_max, f_max))
-        measures.append(s_measure)
-
-    model.train()
-    return measures
 
 if __name__ == '__main__':
     main()

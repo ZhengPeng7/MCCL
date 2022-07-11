@@ -84,18 +84,12 @@ class CoData(data.Dataset):
                 image = self.images_loaded[idx]
                 label = self.labels_loaded[idx]
             else:
-                if os.path.exists(image_paths[idx]):
-                    image = Image.open(image_paths[idx]).convert('RGB')
-                elif os.path.exists(image_paths[idx].replace('.png', '.jpg')):
-                    image = Image.open(image_paths[idx].replace('.png', '.jpg')).convert('RGB')
-                else:
-                    print('Wrong image path:', image_paths[idx])
-                if os.path.exists(label_paths[idx]):
-                    label = Image.open(label_paths[idx]).convert('L')
-                elif os.path.exists(label_paths[idx].replace('.png', '.jpg')):
-                    label = Image.open(label_paths[idx].replace('.png', '.jpg')).convert('L')
-                else:
-                    print('Wrong label path:', label_paths[idx])
+                if not os.path.exists(image_paths[idx]):
+                    image_paths[idx] = image_paths[idx].replace('.jpg', '.png') if image_paths[idx][-4:] == '.jpg' else image_paths[idx].replace('.png', '.jpg')
+                image = Image.open(image_paths[idx]).convert('RGB')
+                if not os.path.exists(label_paths[idx]):
+                    label_paths[idx] = label_paths[idx].replace('.jpg', '.png') if label_paths[idx][-4:] == '.jpg' else label_paths[idx].replace('.png', '.jpg')
+                label = Image.open(label_paths[idx]).convert('L')
 
             subpaths.append(os.path.join(image_paths[idx].split('/')[-2], image_paths[idx].split('/')[-1][:-4]+'.png'))
             ori_sizes.append((image.size[1], image.size[0]))
@@ -133,3 +127,16 @@ def get_loader(img_root, gt_root, img_size, batch_size, max_num = float('inf'), 
     data_loader = data.DataLoader(dataset=dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
                                   pin_memory=pin)
     return data_loader
+
+
+if __name__ == '__main__':
+    img_root = '/disk2TB/co-saliency/Dataset/CoSal2015/Image'
+    gt_root = '/disk2TB/co-saliency/Dataset/CoSal2015/GT'
+    loader = get_loader(img_root, gt_root, 224, 1)
+    for img, gt, subpaths, ori_sizes in loader:
+        # print(img.size())
+        # print(gt.size())
+        print(subpaths)
+        # print(ori_sizes)
+        print(ori_sizes[0][0].item())
+        break

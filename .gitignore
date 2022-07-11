@@ -2,7 +2,7 @@
 .vscode
 ckpt
 preds
-evaluation/output
+evaluation/eval_result
 evaluation/gconet_*
 evaluation/good_ones
 *.out

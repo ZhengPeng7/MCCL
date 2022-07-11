@@ -4,15 +4,17 @@ import os
 class Config():
     def __init__(self) -> None:
         # Backbone
-        self.bb = ['vgg16', 'vgg16bn', 'resnet50'][1]
+        self.bb = ['cnn-vgg16', 'cnn-vgg16bn', 'cnn-resnet50', 'trans-pvt'][1]
+        self.pvt_weights = ['../bb_weights/pvt_v2_b2.pth', '../bb_weights/mask_rcnn_pvt_v2_b2_fpn_1x_coco.pth', ''][0]
         # BN
-        self.use_bn = 'bn' in self.bb or 'resnet' in self.bb
+        self.use_bn = self.bb not in ['cnn-vgg16']
         # Augmentation
         self.preproc_methods = ['flip', 'enhance', 'rotate', 'crop', 'pepper'][:3]
 
-        # Mask
-        losses = ['sal', 'cls', 'contrast', 'cls_mask']
-        self.loss = losses[:1] + losses[2:3]
+        self.batch_size = 48
+        # Loss
+        losses = ['sal']
+        self.loss = losses[:]
         self.cls_mask_operation = ['x', '+', 'c'][0]
         # Loss + Triplet Loss
         self.lambdas_sal_last = {
@@ -23,32 +25,21 @@ class Config():
             'ssim': 1 * 0,          # help contours
             'mse': 150 * 0,         # can smooth the saliency map
             'reg': 100 * 0,
-            'triplet': 3 * 1 * 0,
+            'triplet': 3 * 0 * ('cls' in self.loss),
         }
 
-        # DB
+        self.GAM = False
+        if not self.GAM and 'contrast' in self.loss:
+            self.loss.remove('contrast')
         self.db_output_decoder = False
-        self.db_k = 300
-        self.db_k_alpha = 1
-        self.split_mask = True and 'cls_mask' in self.loss
-        self.db_mask = False and self.split_mask
-
+        self.refine = False
+        self.db_output_refiner = False
         # Triplet Loss
         self.triplet = ['_x5', 'mask'][:1]
         self.triplet_loss_margin = 0.1
         # Adv
         self.lambda_adv = 0.        # turn to 0 to avoid adv training
 
-        # Refiner
-        self.refine = [0, 1, 4][0]         # 0 -- no refinement, 1 -- only output mask for refinement, 4 -- but also raw input.
-        if self.refine:
-            self.batch_size = 16
-        else:
-            if self.bb != 'vgg16':
-                self.batch_size = 32
-            else:
-                self.batch_size = 48
-        self.db_output_refiner = False and self.refine
 
         # Intermediate Layers
         self.lambdas_sal_others = {
@@ -82,17 +73,7 @@ class Config():
         self.lambda_cls = 3.
         self.lambda_contrast = 250.
 
-        # Performance of GCoNet
-        self.val_measures = {
-            'Emax': {'CoCA': 0.760, 'CoSOD3k': 0.860, 'CoSal2015': 0.887},
-            'Smeasure': {'CoCA': 0.673, 'CoSOD3k': 0.802, 'CoSal2015': 0.845},
-            'Fmax': {'CoCA': 0.544, 'CoSOD3k': 0.777, 'CoSal2015': 0.847},
-        }
-
         # others
-        self.GAM = True
-        if not self.GAM and 'contrast' in self.loss:
-            self.loss.remove('contrast')
         self.lr = 1e-4 * (self.batch_size / 16)
         self.relation_module = ['GAM', 'ICE', 'NonLocal', 'MHA'][0]
         self.self_supervision = False

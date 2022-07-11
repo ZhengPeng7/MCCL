@@ -1,212 +1,107 @@
 import os
+import cv2
 import argparse
+import prettytable as pt
 
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.io import loadmat
-import torch
-import torch.nn as nn
-
-from evaluator import Eval_thread
-from dataloader import EvalDataset
-
-import sys
-sys.path.append('..')
-from config import Config
+import metrics as Measure
 
 
-styles = ['.-r', '.--b', '.--g', '.--c', '.-m', '.-y', '.-k', '.-c']
-lines = ['-', '--', '--', '--', '-', '-', '-', '-']
-points = ['*', '.', '.', '.', '.', '.', '.', '.']
-colors = ['r', 'b', 'g', 'c', 'm', 'orange', 'k', 'navy']
+def evaluator(gt_pth_lst, pred_pth_lst):
+    # define measures
+    FM = Measure.Fmeasure()
+    WFM = Measure.WeightedFmeasure()
+    SM = Measure.Smeasure()
+    EM = Measure.Emeasure()
+    MAE = Measure.MAE()
+
+    assert len(gt_pth_lst) == len(pred_pth_lst)
+
+    for idx in range(len(gt_pth_lst)):
+        gt_pth = gt_pth_lst[idx]
+        pred_pth = pred_pth_lst[idx]
+
+        pred_pth = pred_pth[:-4] + '.png'
+        if os.path.exists(pred_pth):
+            pred_ary = cv2.imread(pred_pth, cv2.IMREAD_GRAYSCALE)
+        else:
+            pred_ary = cv2.imread(pred_pth.replace('.png', '.jpg'), cv2.IMREAD_GRAYSCALE)
+        gt_ary = cv2.imread(gt_pth, cv2.IMREAD_GRAYSCALE)
+        pred_ary = cv2.resize(pred_ary, (gt_ary.shape[1], gt_ary.shape[0]))
+
+        FM.step(pred=pred_ary, gt=gt_ary)
+        WFM.step(pred=pred_ary, gt=gt_ary)
+        SM.step(pred=pred_ary, gt=gt_ary)
+        EM.step(pred=pred_ary, gt=gt_ary)
+        MAE.step(pred=pred_ary, gt=gt_ary)
+
+    fm = FM.get_results()['fm']
+    # Weighted F-measure metric published in CVPR'14 (How to evaluate the foreground maps?)
+    wfm = WFM.get_results()['wfm']
+    # S-meaure metric published in ICCV'17 (Structure measure: A New Way to Evaluate the Foreground Map.)
+    sm = SM.get_results()['sm']
+    # E-measure metric published in IJCAI'18 (Enhanced-alignment Measure for Binary Foreground Map Evaluation.)
+    em = EM.get_results()['em']
+    mae = MAE.get_results()['mae']
+
+    return fm, wfm, sm, em, mae
 
 
-def main_plot(cfg):
-    method_names = cfg.methods.split('+')
-    dataset_names = cfg.datasets.split('+')
-    os.makedirs(cfg.output_figure, exist_ok=True)
-    # plt.style.use('seaborn-white')
-
-    # Plot PR Cureve
-    for dataset in dataset_names:
-        plt.figure()
-        idx_style = 0
-        for method in method_names:
-            iRes = loadmat(os.path.join(cfg.output_dir, method, 'final', dataset + '.mat'))
-            imax = np.argmax(iRes['Fm'])
-            plt.plot(
-                iRes['Recall'],
-                iRes['Prec'],
-                #  styles[idx_style],
-                color=colors[idx_style],
-                linestyle=lines[idx_style],
-                marker=points[idx_style],
-                markevery=[imax, imax],
-                label=method)
-            idx_style += 1
-
-        plt.grid(True, zorder=-1)
-        # plt.xlim(0, 1)
-        # plt.ylim(0, 1.02)
-        plt.ylabel('Precision', fontsize=25)
-        plt.xlabel('Recall', fontsize=25)
-
-        plt.legend(loc='lower left', prop={'size': 15})
-        plt.savefig(os.path.join(cfg.output_figure, 'PR_' + dataset + '.png'),
-                    dpi=600,
-                    bbox_inches='tight')
-        plt.close()
-
-    # Plot Fm Cureve
-    for dataset in dataset_names:
-        plt.figure()
-        idx_style = 0
-        for method in method_names:
-            iRes = loadmat(os.path.join(cfg.output_dir, method, 'final', dataset + '.mat'))
-            imax = np.argmax(iRes['Fm'])
-            plt.plot(
-                np.arange(0, 255),
-                iRes['Fm'],
-                #  styles[idx_style],
-                color=colors[idx_style],
-                linestyle=lines[idx_style],
-                marker=points[idx_style],
-                label=method,
-                markevery=[imax, imax])
-            idx_style += 1
-        plt.grid(True, zorder=-1)
-        # plt.ylim(0, 1)
-        plt.ylabel('F-measure', fontsize=25)
-        plt.xlabel('Threshold', fontsize=25)
-
-        plt.legend(loc='lower left', prop={'size': 15})
-        plt.savefig(os.path.join(cfg.output_figure, 'Fm_' + dataset + '.png'),
-                    dpi=600,
-                    bbox_inches='tight')
-        plt.close()
-
-    # Plot Em Cureve
-    for dataset in dataset_names:
-        plt.figure()
-        idx_style = 0
-        for method in method_names:
-            iRes = loadmat(os.path.join(cfg.output_dir, method, 'final', dataset + '.mat'))
-            imax = np.argmax(iRes['Em'])
-            plt.plot(
-                np.arange(0, 255),
-                iRes['Em'],
-                #  styles[idx_style],
-                color=colors[idx_style],
-                linestyle=lines[idx_style],
-                marker=points[idx_style],
-                label=method,
-                markevery=[imax, imax])
-            idx_style += 1
-        plt.grid(True, zorder=-1)
-        plt.ylim(0, 1)
-        plt.ylabel('E-measure', fontsize=16)
-        plt.xlabel('Threshold', fontsize=16)
-
-        plt.legend(loc='lower left', prop={'size': 15})
-        plt.savefig(os.path.join(cfg.output_figure, 'Em_' + dataset + '.png'),
-                    dpi=600,
-                    bbox_inches='tight')
-        plt.close()
-
-    # Plot ROC Cureve
-    for dataset in dataset_names:
-        plt.figure()
-        idx_style = 0
-        for method in method_names:
-            iRes = loadmat(os.path.join(cfg.output_dir, method, 'final', dataset + '.mat'))
-            imax = np.argmax(iRes['Fm'])
-            plt.plot(
-                iRes['FPR'],
-                iRes['TPR'],
-                #  styles[idx_style][1:],
-                color=colors[idx_style],
-                linestyle=lines[idx_style],
-                label=method)
-            idx_style += 1
-
-        plt.grid(True, zorder=-1)
-        plt.xlim(0, 1)
-        plt.ylim(0, 1.02)
-        plt.ylabel('TPR', fontsize=16)
-        plt.xlabel('FPR', fontsize=16)
-
-        plt.legend(loc='lower right')
-        plt.savefig(os.path.join(cfg.output_figure, 'ROC_' + dataset + '.png'),
-                    dpi=600,
-                    bbox_inches='tight')
-        plt.close()
-
-    # Plot Sm-MAE
-    for dataset in dataset_names:
-        plt.figure()
-        plt.gca().invert_xaxis()
-        idx_style = 0
-        for method in method_names:
-            iRes = loadmat(os.path.join(cfg.output_dir, method, 'final', dataset + '.mat'))
-            plt.scatter(iRes['MAE'],
-                        iRes['Sm'],
-                        marker=points[idx_style],
-                        c=colors[idx_style],
-                        s=120)
-            plt.annotate(method,
-                         xy=(iRes['MAE'], iRes['Sm']),
-                         xytext=(iRes['MAE'] - 0.001, iRes['Sm'] - 0.001),
-                         fontsize=14)
-            idx_style += 1
-
-        plt.grid(True, zorder=-1)
-        # plt.xlim(0, 1)
-        plt.ylim(0, 1)
-        plt.ylabel('S-measure', fontsize=16)
-        plt.xlabel('MAE', fontsize=16)
-        plt.savefig(os.path.join(cfg.output_figure, 'Sm-MAE_' + dataset + '.png'),
-                    bbox_inches='tight')
-        plt.close()
-
-
-def main(cfg):
-    if cfg.methods is None:
-        method_names = os.listdir(cfg.pred_dir)
-    else:
-        method_names = cfg.methods.split('+')
-    if cfg.datasets is None:
-        dataset_names = os.listdir(cfg.gt_dir)
-    else:
-        dataset_names = cfg.datasets.split('+')
-
-    num_model_eval = Config().val_last
-    threads = []
-    # model -> ckpt -> dataset
-    for method in method_names:
-        epochs = os.listdir(os.path.join(cfg.pred_dir, method))[-num_model_eval:][::-1]
-        for epoch in epochs:
-            continue_eval = True
-            for dataset in dataset_names:
-                loader = EvalDataset(
-                    os.path.join(cfg.pred_dir, method, epoch, dataset),        # preds
-                    os.path.join(cfg.gt_dir, dataset)                   # GT
+def eval_res(opt, txt_save_path):
+    # evaluation for whole dataset
+    for _data_name in opt.data_lst:
+        # print('#' * 20, _data_name, '#' * 20)
+        filename = os.path.join(txt_save_path, '{}_eval.txt'.format(_data_name))
+        with open(filename, 'a+') as file_to_write:
+            tb = pt.PrettyTable()
+            tb.field_names = [
+                "Dataset", "Method", "maxEm", "Smeasure", "maxFm", "MAE", "meanEm", "meanFm",
+                "adpEm", "wFmeasure", "adpFm"
+            ]
+            for _model_name in opt.model_lst:
+                gt_src = os.path.join(opt.gt_root, _data_name)
+                gt_paths = []
+                for ctgr in os.listdir(gt_src):
+                    for f in os.listdir(os.path.join(gt_src, ctgr)):
+                        gt_paths.append(os.path.join(gt_src, ctgr, f).replace('\\', '/'))
+                pred_paths = [p.replace(opt.gt_root, os.path.join(opt.pred_root, _model_name).replace('\\', '/')) for p in gt_paths]
+                fm, wfm, sm, em, mae = evaluator(
+                    gt_pth_lst=gt_paths,
+                    pred_pth_lst=pred_paths
                 )
-                print('Evaluating predictions from {}'.format(os.path.join(cfg.pred_dir, method, epoch, dataset)))
-                thread = Eval_thread(loader, method, dataset, cfg.output_dir, epoch, cfg.cuda)
-                info, continue_eval = thread.run(continue_eval=continue_eval)
-                print(info)
+                tb.add_row([
+                    _data_name, _model_name, em['curve'].max().round(3), sm.round(3), fm['curve'].max().round(3), mae.round(3), em['curve'].mean().round(3), fm['curve'].mean().round(3),
+                    em['adp'].round(3), wfm.round(3), fm['adp'].round(3)
+                ])
+            print(tb)
+            file_to_write.write(str(tb))
+            file_to_write.close()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
+    # set parameters
     parser = argparse.ArgumentParser()
-    parser.add_argument('--methods', type=str, default='GCoNet_ext')
-    parser.add_argument('--datasets', type=str, default='CoCA+CoSOD3k+CoSal2015')
+    parser.add_argument(
+        '--gt_root', type=str, help='ground-truth root',
+        default='/root/autodl-tmp/datasets/sod/gts')
+    parser.add_argument(
+        '--pred_root', type=str, help='prediction root',
+        default='/root/autodl-tmp/datasets/sod/preds')
+    parser.add_argument(
+        '--data_lst', type=list, help='test dataset',
+        default=['CoCA', 'CoSOD3k', 'CoSal2015'])
+    parser.add_argument(
+        '--model_dir', type=str, help='candidate competitors',
+        default='gconet_X')
+    parser.add_argument(
+        '--txt_name', type=str, help='candidate competitors',
+        default='exp_result')
+    opt = parser.parse_args()
+    if '/ep' in opt.model_dir.replace('\\', '/'):
+        opt.model_lst = [opt.model_dir]
+    else:
+        opt.model_lst = sorted([os.path.join(opt.model_dir, p) for p in os.listdir(os.path.join(opt.pred_root, opt.model_dir))], key=lambda x: -int(x.split('ep')[-1]))
 
-    parser.add_argument('--gt_dir', type=str, default='/home/pz1/datasets/sod/gts', help='GT')
-    parser.add_argument('--pred_dir', type=str, default='/home/pz1/datasets/sod/preds', help='predictions')
-    parser.add_argument('--output_dir', type=str, default='./output/details', help='saving measurements here.')
-    parser.add_argument('--output_figure', type=str, default='./output/figures', help='saving figures here.')
+    txt_save_path = 'evaluation/{}'.format(opt.txt_name)
+    os.makedirs(txt_save_path, exist_ok=True)
 
-    parser.add_argument('--cuda', type=bool, default=True)
-    config = parser.parse_args()
-    main(config)
+    eval_res(opt, txt_save_path)
