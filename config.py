@@ -5,13 +5,16 @@ class Config():
     def __init__(self) -> None:
         # Backbone
         self.bb = ['cnn-vgg16', 'cnn-vgg16bn', 'cnn-resnet50', 'trans-pvt'][1]
-        self.pvt_weights = ['../bb_weights/pvt_v2_b2.pth', '../bb_weights/mask_rcnn_pvt_v2_b2_fpn_1x_coco.pth', ''][0]
+        self.pvt_weights = ['../bb_weights/pvt_v2_b2.pth', '../bb_weights/pvt_v2_b2_li.pth', '../bb_weights/mask_rcnn_pvt_v2_b2_fpn_1x_coco.pth', ''][0]
         # BN
         self.use_bn = self.bb not in ['cnn-vgg16']
         # Augmentation
         self.preproc_methods = ['flip', 'enhance', 'rotate', 'crop', 'pepper'][:3]
 
         self.batch_size = 48
+        self.lr = 1e-4 * (self.batch_size / 16)
+        self.freeze = False
+        self.relation_module = ['GAM', 'ICE', 'NonLocal', 'MHA'][0]
         # Loss
         losses = ['sal']
         self.loss = losses[:]
@@ -74,11 +77,8 @@ class Config():
         self.lambda_contrast = 250.
 
         # others
-        self.lr = 1e-4 * (self.batch_size / 16)
-        self.relation_module = ['GAM', 'ICE', 'NonLocal', 'MHA'][0]
         self.self_supervision = False
         self.label_smoothing = False
-        self.freeze = True
 
         self.validation = False
         self.decay_step_size = 3000

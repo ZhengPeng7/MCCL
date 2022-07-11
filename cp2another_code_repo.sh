@@ -1,5 +1,5 @@
 # Set dst repo here.
-repo="VS-PVT_noPre"
+repo="VS-PVT_224"
 mkdir ../${repo}
 mkdir ../${repo}/evaluation
 mkdir ../${repo}/models
