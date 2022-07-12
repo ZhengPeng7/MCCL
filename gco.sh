@@ -7,8 +7,8 @@
 # Run python script
 method="$1"
 size=256
-epochs=150
-val_last=80
+epochs=100
+val_last=30
 
 # Train
 CUDA_VISIBLE_DEVICES=$2 python train.py --trainset DUTS_class --size ${size} --ckpt_dir ckpt/${method} --epochs ${epochs}
@@ -17,7 +17,7 @@ CUDA_VISIBLE_DEVICES=$2 python train.py --trainset DUTS_class --size ${size} --c
 # Test & Eval
 rm -rf evaluation/${method}
 rm -rf /root/autodl-tmp/datasets/sod/preds/${method}
-step=7
+step=5
 for ((ep=${epochs}-${val_last};ep<${epochs};ep+=${step}))
 do
 pred_dir=/root/autodl-tmp/datasets/sod/preds/${method}/ep${ep}

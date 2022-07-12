@@ -111,8 +111,7 @@ logger_loss_idx = 1
 # Init model
 device = torch.device("cuda")
 
-model = GCoNet()
-model = model.to(device)
+model = GCoNet().to(device)
 if config.lambda_adv:
     from adv import Discriminator
     disc = Discriminator(channels=1, img_size=args.size).to(device)
@@ -120,23 +119,17 @@ if config.lambda_adv:
     Tensor = torch.cuda.FloatTensor if (True if torch.cuda.is_available() else False) else torch.FloatTensor
     adv_criterion = nn.BCELoss()
 
-backbone_params = list(map(id, model.bb.parameters()))
-base_params = filter(lambda p: id(p) not in backbone_params,
-                     model.parameters())
-
-all_params = [{'params': base_params}, {'params': model.bb.parameters(), 'lr': config.lr * 0.01}]
-
 # Setting optimizer
 if 'trans-' in config.bb:
-    optimizer = optim.AdamW(params=all_params, lr=config.lr, weight_decay=0)
+    optimizer = optim.AdamW(params=model.parameters(), lr=config.lr, weight_decay=0)
 else:
-    optimizer = optim.Adam(params=all_params, lr=config.lr, weight_decay=0)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config.decay_step_size, gamma=0.1)
+    optimizer = optim.Adam(params=model.parameters(), lr=config.lr, weight_decay=0)
+lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=config.lr_decay_epochs, gamma=0.1)
 
 # Why freeze the backbone?...
 if config.freeze:
     for key, value in model.named_parameters():
-        if 'bb' in key and 'bb.conv5.conv5_3' not in key:
+        if 'bb.' in key:
             value.requires_grad = False
 
 
@@ -146,7 +139,7 @@ logger.info(model)
 logger.info("Optimizer details:")
 logger.info(optimizer)
 logger.info("Scheduler details:")
-logger.info(scheduler)
+logger.info(lr_scheduler)
 logger.info("Other hyperparameters:")
 logger.info(args)
 
@@ -172,11 +165,12 @@ def main():
             {
                 'epoch': epoch + 1,
                 'state_dict': model.state_dict(),
-                'scheduler': scheduler.state_dict(),
+                'lr_scheduler': lr_scheduler.state_dict(),
             },
             path=args.ckpt_dir)
         if epoch >= args.epochs - config.val_last:
             torch.save(model.state_dict(), os.path.join(args.ckpt_dir, 'ep{}.pth'.format(epoch)))
+        lr_scheduler.step()
 
 
 def train(epoch):
@@ -363,7 +357,6 @@ def train(epoch):
                 info_loss += ', loss_triplet: {:.3f}'.format(loss_triplet)
             info_loss += ', Loss_total: {loss.val:.3f} ({loss.avg:.3f})  '.format(loss=loss_log)
             logger.info(''.join((info_progress, info_loss)))
-    scheduler.step()
     info_loss = '@==Final== Epoch[{0}/{1}]  Train Loss: {loss.avg:.3f}  '.format(epoch, args.epochs, loss=loss_log)
     if config.lambdas_sal_last['triplet']:
         info_loss += 'Triplet Loss: {loss.avg:.3f}  '.format(loss=loss_log_triplet)
