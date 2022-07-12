@@ -41,7 +41,7 @@ class GCoNet(nn.Module):
                 'conv2': bb_net[4],
                 'conv3': bb_net[5],
                 'conv4': bb_net[6],
-                'conv4': bb_net[7]
+                'conv5': bb_net[7]
             })
         elif bb == 'trans-pvt':
             self.bb = pvt_v2_b2()
