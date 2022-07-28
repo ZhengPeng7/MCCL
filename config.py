@@ -4,7 +4,7 @@ import os
 class Config():
     def __init__(self) -> None:
         # Backbone
-        self.bb = ['cnn-vgg16', 'cnn-vgg16bn', 'cnn-resnet50', 'trans-pvt'][1]
+        self.bb = ['cnn-vgg16', 'cnn-vgg16bn', 'cnn-resnet50', 'trans-pvt'][3]
         self.pvt_weights = ['../bb_weights/pvt_v2_b2.pth'][0]
         # BN
         self.use_bn = self.bb not in ['cnn-vgg16']
@@ -12,9 +12,10 @@ class Config():
         self.preproc_methods = ['flip', 'enhance', 'rotate', 'crop', 'pepper'][:3]
 
         self.batch_size = 48
-        self.lr = 1e-4 * (self.batch_size / 16)
+        self.optimizer = ['Adam', 'AdamW'][0]
+        self.lr = 1e-4
         self.freeze = True
-        self.lr_decay_epochs = [1000, 1001]
+        self.lr_decay_epochs = [90, 120]
         self.relation_module = ['GAM', 'ICE', 'NonLocal', 'MHA'][0]
         # Loss
         losses = ['sal']

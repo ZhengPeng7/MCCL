@@ -384,3 +384,4 @@ class WeightedFmeasure(object):
     def get_results(self) -> dict:
         weighted_fm = np.mean(np.array(self.weighted_fms, dtype=_TYPE))
         return dict(wfm=weighted_fm)
+

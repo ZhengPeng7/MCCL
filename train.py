@@ -120,9 +120,9 @@ if config.lambda_adv:
     adv_criterion = nn.BCELoss()
 
 # Setting optimizer
-if 'trans-' in config.bb:
-    optimizer = optim.AdamW(params=model.parameters(), lr=config.lr, weight_decay=0)
-else:
+if config.optimizer == 'AdamW':
+    optimizer = optim.AdamW(params=model.parameters(), lr=config.lr, weight_decay=1e-2)
+elif config.optimizer == 'Adam':
     optimizer = optim.Adam(params=model.parameters(), lr=config.lr, weight_decay=0)
 lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=config.lr_decay_epochs, gamma=0.1)
 

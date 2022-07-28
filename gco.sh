@@ -15,8 +15,10 @@ CUDA_VISIBLE_DEVICES=$2 python train.py --trainset DUTS_class --size ${size} --c
 
 
 # Test & Eval
-rm -rf evaluation/${method}
-rm -rf /root/autodl-tmp/datasets/sod/preds/${method}
+if [ "$word" ] ;then
+    rm -rf evaluation/${method}
+    rm -rf /root/autodl-tmp/datasets/sod/preds/${method}
+fi
 step=5
 for ((ep=${epochs}-${val_last};ep<${epochs};ep+=${step}))
 do
