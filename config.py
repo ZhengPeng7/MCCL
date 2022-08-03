@@ -33,8 +33,8 @@ class Config():
             'triplet': 3 * 0 * ('cls' in self.loss),
         }
 
-        self.GAM = False
-        if not self.GAM and 'contrast' in self.loss:
+        self.consensus = ['', 'GAM', 'GWM', 'SGS'][-1]
+        if self.consensus != 'GAM' and 'contrast' in self.loss:
             self.loss.remove('contrast')
         self.db_output_decoder = False
         self.refine = False

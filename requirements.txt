@@ -3,3 +3,5 @@ pytorch_toolbelt
 tqdm
 fvcore
 timm
+prettytable
+einops

@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import fvcore.nn.weight_init as weight_init
+from functools import partial
+from einops import rearrange
 
 from config import Config
 
@@ -31,17 +33,96 @@ class ResBlk(nn.Module):
         return x
 
 
+class GWM(nn.Module):
+    def __init__(self, channel_in, num_groups1=8, num_groups2=4, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
+        super(GWM, self).__init__()
+        self.num_heads = num_heads
+        self.num_groups1 = num_groups1
+        self.num_groups2 = num_groups2
+        head_dim = channel_in // num_heads
+        self.scale = qk_scale or head_dim ** -0.5
+
+        self.qkv = nn.Linear(channel_in, channel_in * 3, bias=qkv_bias)
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Linear(channel_in, channel_in)
+        self.proj_drop = nn.Dropout(proj_drop)
+
+    def forward(self, x, recursive_index=False):
+        B, N, C = x.shape
+        if recursive_index == False:
+            num_groups = self.num_groups1
+        else:
+            num_groups = self.num_groups2
+            if num_groups != 1:
+                idx = torch.randperm(N)
+                x = x[:,idx,:]
+                inverse = torch.argsort(idx)
+        qkv = self.qkv(x).reshape(B, num_groups, N // num_groups, 3, self.num_heads, C // self.num_heads).permute(3, 0, 1, 4, 2, 5)  
+        q, k, v = qkv[0], qkv[1], qkv[2]   # make torchscript happy (cannot use tensor as tuple)
+
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+
+        x = (attn @ v).transpose(2, 3).reshape(B, num_groups, N // num_groups, C)
+        x = x.permute(0, 3, 1, 2).reshape(B, C, N).transpose(1, 2)
+        if recursive_index == True and num_groups != 1:
+            x = x[:,inverse,:]
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        return x
+
+
+
+class SGS(nn.Module):
+    def __init__(self, channel_in, num_groups1=8, num_groups2=4, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
+        super(SGS, self).__init__()
+        self.num_heads = num_heads
+        self.num_groups1 = num_groups1
+        self.num_groups2 = num_groups2
+        head_dim = channel_in // num_heads
+        self.scale = qk_scale or head_dim ** -0.5
+        self.normer = partial(nn.LayerNorm, eps=1e-6)(channel_in)
+
+        self.qkv = nn.Linear(channel_in, channel_in * 3, bias=qkv_bias)
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Linear(channel_in, channel_in)
+        self.proj_drop = nn.Dropout(proj_drop)
+
+    def forward(self, x, recursive_index=False):
+        batch_size, chl, hei, wid = x.shape
+        x = rearrange(x, 'b c h w -> b (h w) c')
+        B, N, C = x.shape
+        if recursive_index == False:
+            num_groups = self.num_groups1
+        else:
+            num_groups = self.num_groups2
+            if num_groups != 1:
+                idx = torch.randperm(N)
+                x = x[:,idx,:]
+                inverse = torch.argsort(idx)
+        qkv = self.qkv(x).reshape(B, num_groups, N // num_groups, 3, self.num_heads, C // self.num_heads).permute(3, 0, 1, 4, 2, 5)  
+        q, k, v = qkv[0], qkv[1], qkv[2]   # make torchscript happy (cannot use tensor as tuple)
+
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+
+        x = (attn @ v).transpose(2, 3).reshape(B, num_groups, N // num_groups, C)
+        x = x.permute(0, 3, 1, 2).reshape(B, C, N).transpose(1, 2)
+        if recursive_index == True and num_groups != 1:
+            x = x[:,inverse,:]
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        x = rearrange(x, 'b (h w) c -> b c h w', h=hei, w=wid)
+        return x
+
+
 class CoAttLayer(nn.Module):
     def __init__(self, channel_in=512):
         super(CoAttLayer, self).__init__()
 
         self.all_attention = eval(Config().relation_module + '(channel_in)')
-        self.conv_output = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0) 
-        self.conv_transform = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0) 
-        self.fc_transform = nn.Linear(channel_in, channel_in)
-
-        for layer in [self.conv_output, self.conv_transform, self.fc_transform]:
-            weight_init.c2_msra_fill(layer)
     
     def forward(self, x5):
         if self.training:
@@ -66,9 +147,9 @@ class CoAttLayer(nn.Module):
             x5_22 = x5_2 * x5_2_proto
             weighted_x5 = torch.cat([x5_11, x5_22], dim=0)
 
-            x5_12 = x5_1 * x5_2_proto
-            x5_21 = x5_2 * x5_1_proto
-            neg_x5 = torch.cat([x5_12, x5_21], dim=0)
+            # x5_12 = x5_1 * x5_2_proto
+            # x5_21 = x5_2 * x5_1_proto
+            # neg_x5 = torch.cat([x5_12, x5_21], dim=0)
         else:
 
             x5_new = self.all_attention(x5)
@@ -77,7 +158,7 @@ class CoAttLayer(nn.Module):
 
             weighted_x5 = x5 * x5_proto #* cweight
             neg_x5 = None
-        return weighted_x5, neg_x5
+        return weighted_x5
 
 
 class GAM(nn.Module):

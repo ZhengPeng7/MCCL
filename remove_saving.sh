@@ -6,7 +6,5 @@ rm -r ckpt
 rm *.out
 
 # Eval
-rm -r evaluation/eval-result/*
-rm -r evaluation/score_sorted.txt
-rm -r evaluation/gconet_*
+rm -r evaluation/eval-*
 

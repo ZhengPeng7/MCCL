@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torchvision.models import vgg16, vgg16_bn
 from torchvision.models import resnet50
 
-from models.modules import ResBlk, CoAttLayer
+from models.modules import ResBlk, CoAttLayer, GWM, SGS
 from models.pvt import pvt_v2_b2
 from config import Config
 
@@ -61,8 +61,12 @@ class GCoNet(nn.Module):
             'trans-pvt': [512, 320, 128, 64],
         }
 
-        if self.config.GAM:
+        if self.config.consensus == 'GAM':
             self.co_x4 = CoAttLayer(channel_in=lateral_channels_in[bb][0])
+        elif self.config.consensus == 'SGS':
+            self.co_x4 = SGS(channel_in=lateral_channels_in[bb][0])
+        elif self.config.consensus == 'GWM':
+            self.co_x4 = GWM(channel_in=lateral_channels_in[bb][0])
 
         self.top_layer = ResBlk(lateral_channels_in[bb][0], lateral_channels_in[bb][1])
 
@@ -90,11 +94,9 @@ class GCoNet(nn.Module):
             x3 = self.bb.conv3(x2)
             x4 = self.bb.conv4(x3)
 
-        if self.config.GAM:
-            weighted_x4, neg_x4 = self.co_x4(x4)
-            p4 = self.top_layer(weighted_x4)
-        else:
-            p4 = self.top_layer(x4)
+        if self.config.consensus:
+            x4 = self.co_x4(x4)
+        p4 = self.top_layer(x4)
 
         ########## Decoder ##########
         scaled_preds = []

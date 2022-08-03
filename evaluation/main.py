@@ -101,7 +101,7 @@ if __name__ == '__main__':
     else:
         opt.model_lst = sorted([os.path.join(opt.model_dir, p) for p in os.listdir(os.path.join(opt.pred_root, opt.model_dir))], key=lambda x: -int(x.split('ep')[-1]))
 
-    txt_save_path = 'evaluation/{}'.format(opt.txt_name)
+    txt_save_path = 'evaluation/eval-{}'.format(opt.txt_name)
     os.makedirs(txt_save_path, exist_ok=True)
 
     eval_res(opt, txt_save_path)
