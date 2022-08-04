@@ -122,43 +122,36 @@ class CoAttLayer(nn.Module):
     def __init__(self, channel_in=512):
         super(CoAttLayer, self).__init__()
 
-        self.all_attention = eval(Config().relation_module + '(channel_in)')
+        self.all_attention = GAM(channel_in)
     
-    def forward(self, x5):
+    def forward(self, x):
         if self.training:
-            f_begin = 0
-            f_end = int(x5.shape[0] / 2)
-            s_begin = f_end
-            s_end = int(x5.shape[0])
+            if config.loadN > 1:
+                channel_per_class = x.shape[0] // config.loadN
+                x_per_class_corr_list = []
+                for idx in range(0, x.shape[0], channel_per_class):
+                    x_per_class = x[idx:idx+channel_per_class]
 
-            x5_1 = x5[f_begin: f_end]
-            x5_2 = x5[s_begin: s_end]
+                    x_new_per_class = self.all_attention(x_per_class)
 
-            x5_new_1 = self.all_attention(x5_1)
-            x5_new_2 = self.all_attention(x5_2)
+                    x_per_class_proto = torch.mean(x_new_per_class, (0, 2, 3), True).view(1, -1)
+                    x_per_class_proto = x_per_class_proto.unsqueeze(-1).unsqueeze(-1) # 1, C, 1, 1
 
-            x5_1_proto = torch.mean(x5_new_1, (0, 2, 3), True).view(1, -1)
-            x5_1_proto = x5_1_proto.unsqueeze(-1).unsqueeze(-1) # 1, C, 1, 1
+                    x_per_class_corr = x_per_class * x_per_class_proto
+                    x_per_class_corr_list.append(x_per_class_corr)
+                weighted_x = torch.cat(x_per_class_corr_list, dim=0)
+            else:
+                x_new = self.all_attention(x)
+                x_proto = torch.mean(x_new, (0, 2, 3), True).view(1, -1)
+                x_proto = x_proto.unsqueeze(-1).unsqueeze(-1) # 1, C, 1, 1
+                weighted_x = x * x_proto
 
-            x5_2_proto = torch.mean(x5_new_2, (0, 2, 3), True).view(1, -1)
-            x5_2_proto = x5_2_proto.unsqueeze(-1).unsqueeze(-1) # 1, C, 1, 1
-
-            x5_11 = x5_1 * x5_1_proto
-            x5_22 = x5_2 * x5_2_proto
-            weighted_x5 = torch.cat([x5_11, x5_22], dim=0)
-
-            # x5_12 = x5_1 * x5_2_proto
-            # x5_21 = x5_2 * x5_1_proto
-            # neg_x5 = torch.cat([x5_12, x5_21], dim=0)
         else:
-
-            x5_new = self.all_attention(x5)
-            x5_proto = torch.mean(x5_new, (0, 2, 3), True).view(1, -1)
-            x5_proto = x5_proto.unsqueeze(-1).unsqueeze(-1) # 1, C, 1, 1
-
-            weighted_x5 = x5 * x5_proto #* cweight
-            neg_x5 = None
-        return weighted_x5
+            x_new = self.all_attention(x)
+            x_proto = torch.mean(x_new, (0, 2, 3), True).view(1, -1)
+            x_proto = x_proto.unsqueeze(-1).unsqueeze(-1) # 1, C, 1, 1
+            weighted_x = x * x_proto
+        return weighted_x
 
 
 class GAM(nn.Module):
@@ -175,17 +168,18 @@ class GAM(nn.Module):
         for layer in [self.query_transform, self.key_transform, self.conv6]:
             weight_init.c2_msra_fill(layer)
 
-    def forward(self, x5):
+
+    def forward(self, x):
         # x: B,C,H,W
         # x_query: B,C,HW
-        B, C, H5, W5 = x5.size()
+        B, C, H5, W5 = x.size()
 
-        x_query = self.query_transform(x5).view(B, C, -1)
+        x_query = self.query_transform(x).view(B, C, -1)
 
         # x_query: B,HW,C
         x_query = torch.transpose(x_query, 1, 2).contiguous().view(-1, C) # BHW, C
         # x_key: B,C,HW
-        x_key = self.key_transform(x5).view(B, C, -1)
+        x_key = self.key_transform(x).view(B, C, -1)
 
         x_key = torch.transpose(x_key, 0, 1).contiguous().view(C, -1) # C, BHW
 
@@ -199,7 +193,7 @@ class GAM(nn.Module):
         x_w = F.softmax(x_w, dim=-1) # B, HW
         x_w = x_w.view(B, H5, W5).unsqueeze(1) # B, 1, H, W
  
-        x5 = x5 * x_w
-        x5 = self.conv6(x5)
+        x = x * x_w
+        x = self.conv6(x)
 
-        return x5
+        return x

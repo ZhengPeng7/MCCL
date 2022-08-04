@@ -51,7 +51,7 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def save_checkpoint(state, path, filename="checkpoint.pth"):
+def save_checkpoint(state, path, filename="latest.pth"):
     torch.save(state, os.path.join(path, filename))
 
 

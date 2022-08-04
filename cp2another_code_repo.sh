@@ -1,5 +1,5 @@
 # Set dst repo here.
-repo="VS-SGS22"
+repo="VS-load2"
 mkdir ../${repo}
 mkdir ../${repo}/evaluation
 mkdir ../${repo}/models

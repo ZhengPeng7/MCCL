@@ -33,9 +33,9 @@ parser.add_argument('--resume',
                     default=None,
                     type=str,
                     help='path to latest checkpoint')
-parser.add_argument('--epochs', default=30, type=int)
+parser.add_argument('--epochs', default=100, type=int)
 parser.add_argument('--start_epoch',
-                    default=0,
+                    default=1,
                     type=int,
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('--trainset',
@@ -124,7 +124,11 @@ if config.optimizer == 'AdamW':
     optimizer = optim.AdamW(params=model.parameters(), lr=config.lr, weight_decay=1e-2)
 elif config.optimizer == 'Adam':
     optimizer = optim.Adam(params=model.parameters(), lr=config.lr, weight_decay=0)
-lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=config.lr_decay_epochs, gamma=0.1)
+lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+    optimizer,
+    milestones=[lde if lde > 0 else args.epochs + lde for lde in config.lr_decay_epochs],
+    gamma=0.1
+)
 
 # Why freeze the backbone?...
 if config.freeze:
@@ -158,17 +162,18 @@ def main():
         else:
             logger.info("=> no checkpoint found at '{}'".format(args.resume))
 
-    for epoch in range(args.start_epoch, args.epochs):
+    for epoch in range(args.start_epoch, args.epochs+1):
         train_loss = train(epoch)
         # Save checkpoint
-        save_checkpoint(
-            {
-                'epoch': epoch + 1,
-                'state_dict': model.state_dict(),
-                'lr_scheduler': lr_scheduler.state_dict(),
-            },
-            path=args.ckpt_dir)
+        # save_checkpoint(
+        #     {
+        #         'epoch': epoch + 1,
+        #         'state_dict': model.state_dict(),
+        #         'lr_scheduler': lr_scheduler.state_dict(),
+        #     },
+        #     path=args.ckpt_dir)
         if epoch >= args.epochs - config.val_last:
+            print(11111111111)
             torch.save(model.state_dict(), os.path.join(args.ckpt_dir, 'ep{}.pth'.format(epoch)))
         lr_scheduler.step()
 

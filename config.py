@@ -11,12 +11,12 @@ class Config():
         # Augmentation
         self.preproc_methods = ['flip', 'enhance', 'rotate', 'crop', 'pepper'][:3]
 
-        self.batch_size = 48
+        self.batch_size = 32
+        self.loadN = 2
         self.optimizer = ['Adam', 'AdamW'][0]
         self.lr = 1e-4
         self.freeze = True
-        self.lr_decay_epochs = [90, 120]
-        self.relation_module = ['GAM', 'ICE', 'NonLocal', 'MHA'][0]
+        self.lr_decay_epochs = [-20]    # Set to negative N to decay the lr in the last N-th epoch.
         # Loss
         losses = ['sal']
         self.loss = losses[:]
@@ -33,7 +33,7 @@ class Config():
             'triplet': 3 * 0 * ('cls' in self.loss),
         }
 
-        self.consensus = ['', 'GAM', 'GWM', 'SGS'][-1]
+        self.consensus = ['', 'GAM', 'GWM', 'SGS'][1]
         if self.consensus != 'GAM' and 'contrast' in self.loss:
             self.loss.remove('contrast')
         self.db_output_decoder = False
