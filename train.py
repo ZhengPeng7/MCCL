@@ -17,7 +17,7 @@ import torch.nn.functional as F
 import pytorch_toolbelt.losses as PTL
 
 from config import Config
-from loss import saliency_structure_consistency, DSLoss
+from loss import saliency_structure_consistency, SalLoss
 from util import generate_smoothed_gt
 
 from models.GCoNet import GCoNet
@@ -39,11 +39,11 @@ parser.add_argument('--start_epoch',
                     type=int,
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('--trainset',
-                    default='Jigsaw2_DUTS',
+                    default='DUTS_class+coco-seg',
                     type=str,
                     help="Options: 'DUTS_class'")
 parser.add_argument('--size',
-                    default=224,
+                    default=256,
                     type=int,
                     help='input size')
 parser.add_argument('--ckpt_dir', default=None, help='Temporary folder')
@@ -51,7 +51,7 @@ parser.add_argument('--ckpt_dir', default=None, help='Temporary folder')
 parser.add_argument('--testsets',
                     default='CoCA+CoSOD3k+CoSal2015',
                     type=str,
-                    help="Options: 'CoCA','CoSal2015','CoSOD3k','iCoseg','MSRC'")
+                    help="Options: 'CoCA', 'CoSal2015', 'CoSOD3k'")
 
 args = parser.parse_args()
 
@@ -59,19 +59,22 @@ args = parser.parse_args()
 config = Config()
 
 # Prepare dataset
-if args.trainset == 'DUTS_class':
-    root_dir = '/root/autodl-tmp/datasets/sod'
+root_dir = '/root/autodl-tmp/datasets/sod'
+if 'DUTS_class' in args.trainset.split('+'):
     train_img_path = os.path.join(root_dir, 'images/DUTS_class')
     train_gt_path = os.path.join(root_dir, 'gts/DUTS_class')
-    train_loader = get_loader(train_img_path,
-                              train_gt_path,
-                              args.size,
-                              1,
-                              max_num=config.batch_size,
-                              istrain=True,
-                              shuffle=False,
-                              num_workers=8,
-                              pin=True)
+    train_loader = get_loader(
+        train_img_path,
+        train_gt_path,
+        args.size,
+        1,
+        max_num=config.batch_size,
+        istrain=True,
+        shuffle=True,
+        num_workers=8,
+        pin=True
+    )
+if 'coco-seg' in args.trainset.split('+'):
     train_img_path_seg = os.path.join(root_dir, 'images/coco-seg')
     train_gt_path_seg = os.path.join(root_dir, 'gts/coco-seg')
     train_loader_seg = get_loader(
@@ -85,14 +88,14 @@ if args.trainset == 'DUTS_class':
         num_workers=8,
         pin=True
     )
-else:
-    print('Unkonwn train dataset')
-    print(args.dataset)
+# else:
+#     print('Unkonwn train dataset')
+#     print(args.dataset)
 
 test_loaders = {}
 for testset in args.testsets.split('+'):
     test_loader = get_loader(
-        os.path.join('../../../datasets/sod', 'images', testset), os.path.join('../../../datasets/sod', 'gts', testset),
+        os.path.join('/root/autodl-tmp/datasets/sod', 'images', testset), os.path.join('/root/autodl-tmp/datasets/sod', 'gts', testset),
         args.size, 1, istrain=False, shuffle=False, num_workers=8, pin=True
     )
     test_loaders[testset] = test_loader
@@ -148,7 +151,7 @@ logger.info("Other hyperparameters:")
 logger.info(args)
 
 # Setting Loss
-dsloss = DSLoss()
+sal_oss = SalLoss()
 
 
 def main():
@@ -165,13 +168,6 @@ def main():
     for epoch in range(args.start_epoch, args.epochs+1):
         train_loss = train(epoch)
         # Save checkpoint
-        # save_checkpoint(
-        #     {
-        #         'epoch': epoch + 1,
-        #         'state_dict': model.state_dict(),
-        #         'lr_scheduler': lr_scheduler.state_dict(),
-        #     },
-        #     path=args.ckpt_dir)
         if epoch >= args.epochs - config.val_last:
             torch.save(model.state_dict(), os.path.join(args.ckpt_dir, 'ep{}.pth'.format(epoch)))
         lr_scheduler.step()
@@ -192,20 +188,7 @@ def train(epoch):
         gts_neg = torch.full_like(gts, 0.0)
         gts_cat = torch.cat([gts, gts_neg], dim=0)
         return_values = model(inputs)
-        if {'sal', 'cls', 'contrast', 'cls_mask'} == set(config.loss):
-            scaled_preds, pred_cls, pred_contrast, pred_cls_masks = return_values[:4]
-        elif {'sal', 'cls', 'contrast'} == set(config.loss):
-            scaled_preds, pred_cls, pred_contrast = return_values[:3]
-        elif {'sal', 'cls', 'cls_mask'} == set(config.loss):
-            scaled_preds, pred_cls, pred_cls_masks = return_values[:3]
-        elif {'sal', 'cls'} == set(config.loss):
-            scaled_preds, pred_cls = return_values[:2]
-        elif {'sal', 'contrast'} == set(config.loss):
-            scaled_preds, pred_contrast = return_values[:2]
-        elif {'sal', 'cls_mask'} == set(config.loss):
-            scaled_preds, pred_cls_masks = return_values[:2]
-        else:
-            scaled_preds = return_values[0]
+        scaled_preds = return_values[0]
         norm_features = None
         if config.lambdas_sal_last['triplet']:
             norm_features = return_values[-1]
@@ -213,11 +196,11 @@ def train(epoch):
 
         # Tricks
         if config.lambdas_sal_last['triplet']:
-            loss_sal, loss_triplet = dsloss(scaled_preds, gts, norm_features=norm_features, labels=cls_gts)
+            loss_sal, loss_triplet = sal_oss(scaled_preds, gts, norm_features=norm_features, labels=cls_gts)
         else:
-            loss_sal = dsloss(scaled_preds, gts)
+            loss_sal = sal_oss(scaled_preds, gts)
         if config.label_smoothing:
-            loss_sal = 0.5 * (loss_sal + dsloss(scaled_preds, generate_smoothed_gt(gts)))
+            loss_sal = 0.5 * (loss_sal + sal_oss(scaled_preds, generate_smoothed_gt(gts)))
         if config.self_supervision:
             H, W = inputs.shape[-2:]
             images_scale = F.interpolate(inputs, size=(H//4, W//4), mode='bilinear', align_corners=True)
@@ -232,17 +215,6 @@ def train(epoch):
         # since there may be several losses for sal, the lambdas for them (lambdas_sal) are inside the loss.py
         loss_sal = loss_sal * 1
         loss += loss_sal
-        if 'cls' in config.loss:
-            loss_cls = F.cross_entropy(pred_cls, cls_gts) * config.lambda_cls
-            loss += loss_cls
-        if 'contrast' in config.loss:
-            loss_contrast = FL(pred_contrast, gts_cat) * config.lambda_contrast
-            loss += loss_contrast
-        if 'cls_mask' in config.loss:
-            loss_cls_mask = 0
-            for pred_cls_mask in pred_cls_masks:
-                loss_cls_mask += F.cross_entropy(pred_cls_mask, cls_gts) * config.lambda_cls_mask
-            loss += loss_cls_mask
         if config.lambda_adv:
             # gen
             valid = Variable(Tensor(scaled_preds[-1].shape[0], 1).fill_(1.0), requires_grad=False)
@@ -265,20 +237,7 @@ def train(epoch):
         gts_neg = torch.full_like(gts, 0.0)
         gts_cat = torch.cat([gts, gts_neg], dim=0)
         return_values = model(inputs)
-        if {'sal', 'cls', 'contrast', 'cls_mask'} == set(config.loss):
-            scaled_preds, pred_cls, pred_contrast, pred_cls_masks = return_values[:4]
-        elif {'sal', 'cls', 'contrast'} == set(config.loss):
-            scaled_preds, pred_cls, pred_contrast = return_values[:3]
-        elif {'sal', 'cls', 'cls_mask'} == set(config.loss):
-            scaled_preds, pred_cls, pred_cls_masks = return_values[:3]
-        elif {'sal', 'cls'} == set(config.loss):
-            scaled_preds, pred_cls = return_values[:2]
-        elif {'sal', 'contrast'} == set(config.loss):
-            scaled_preds, pred_contrast = return_values[:2]
-        elif {'sal', 'cls_mask'} == set(config.loss):
-            scaled_preds, pred_cls_masks = return_values[:2]
-        else:
-            scaled_preds = return_values[0]
+        scaled_preds = return_values[0]
         norm_features = None
         if config.lambdas_sal_last['triplet']:
             norm_features = return_values[-1]
@@ -286,11 +245,11 @@ def train(epoch):
 
         # Tricks
         if config.lambdas_sal_last['triplet']:
-            loss_sal, loss_triplet = dsloss(scaled_preds, gts, norm_features=norm_features, labels=cls_gts)
+            loss_sal, loss_triplet = sal_oss(scaled_preds, gts, norm_features=norm_features, labels=cls_gts)
         else:
-            loss_sal = dsloss(scaled_preds, gts)
+            loss_sal = sal_oss(scaled_preds, gts)
         if config.label_smoothing:
-            loss_sal = 0.5 * (loss_sal + dsloss(scaled_preds, generate_smoothed_gt(gts)))
+            loss_sal = 0.5 * (loss_sal + sal_oss(scaled_preds, generate_smoothed_gt(gts)))
         if config.self_supervision:
             H, W = inputs.shape[-2:]
             images_scale = F.interpolate(inputs, size=(H//4, W//4), mode='bilinear', align_corners=True)
@@ -305,17 +264,6 @@ def train(epoch):
         # since there may be several losses for sal, the lambdas for them (lambdas_sal) are inside the loss.py
         loss_sal = loss_sal * 1
         loss += loss_sal
-        if 'cls' in config.loss:
-            loss_cls = F.cross_entropy(pred_cls, cls_gts) * config.lambda_cls
-            loss += loss_cls
-        if 'contrast' in config.loss:
-            loss_contrast = FL(pred_contrast, gts_cat) * config.lambda_contrast
-            loss += loss_contrast
-        if 'cls_mask' in config.loss:
-            loss_cls_mask = 0
-            for pred_cls_mask in pred_cls_masks:
-                loss_cls_mask += F.cross_entropy(pred_cls_mask, cls_gts) * config.lambda_cls_mask
-            loss += loss_cls_mask
         if config.lambda_adv:
             # gen
             valid = Variable(Tensor(scaled_preds[-1].shape[0], 1).fill_(1.0), requires_grad=False)
@@ -349,14 +297,6 @@ def train(epoch):
             # NOTE: Top2Down; [0] is the grobal slamap and [5] is the final output
             info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}]'.format(epoch, args.epochs, batch_idx, len(train_loader))
             info_loss = 'Train Loss: loss_sal: {:.3f}'.format(loss_sal)
-            if 'cls' in config.loss:
-                info_loss += ', loss_cls: {:.3f}'.format(loss_cls)
-            if 'cls_mask' in config.loss:
-                info_loss += ', loss_cls_mask: {:.3f}'.format(loss_cls_mask)
-            if 'contrast' in config.loss:
-                info_loss += ', loss_contrast: {:.3f}'.format(loss_contrast)
-            if config.lambda_adv:
-                info_loss += ', loss_adv: {:.3f}, loss_adv_disc: {:.3f}'.format(adv_loss_g, adv_loss_d)
             if config.lambdas_sal_last['triplet']:
                 info_loss += ', loss_triplet: {:.3f}'.format(loss_triplet)
             info_loss += ', Loss_total: {loss.val:.3f} ({loss.avg:.3f})  '.format(loss=loss_log)

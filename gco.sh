@@ -6,11 +6,12 @@ epochs=100
 val_last=40
 
 # Train
-CUDA_VISIBLE_DEVICES=$2 python train.py --trainset DUTS_class --size ${size} --ckpt_dir ckpt/${method} --epochs ${epochs}
+CUDA_VISIBLE_DEVICES=$2 python train.py --trainset DUTS_class+coco-seg --size ${size} --ckpt_dir ckpt/${method} --epochs ${epochs}
 
 
 # Test & Eval
-if [ "$word" ] ;then
+# If dirs of performance and predictions already exist, remove them.
+if [ "${method}" ] ;then
     rm -rf evaluation/${method}
     rm -rf /root/autodl-tmp/datasets/sod/preds/${method}
 fi

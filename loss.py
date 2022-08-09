@@ -148,12 +148,12 @@ class ThrReg_loss(torch.nn.Module):
         return torch.mean(1 - ((pred - 0) ** 2 + (pred - 1) ** 2))
 
 
-class DSLoss(nn.Module):
+class SalLoss(nn.Module):
     """
     IoU loss for outputs in [1:] scales.
     """
     def __init__(self):
-        super(DSLoss, self).__init__()
+        super(SalLoss, self).__init__()
         self.config = Config()
         self.lambdas_sal_last = self.config.lambdas_sal_last
         self.lambdas_sal_others = self.config.lambdas_sal_others
