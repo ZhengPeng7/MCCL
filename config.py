@@ -17,7 +17,7 @@ class Config():
         self.lr = 1e-4
         self.freeze = True
         self.lr_decay_epochs = [-20]    # Set to negative N to decay the lr in the last N-th epoch.
-        self.optimize_per_dataset = True
+        self.optimize_per_dataset = False
         # Adv
         self.lambda_adv = 0.        # turn to 0 to avoid adv training
         # Loss
