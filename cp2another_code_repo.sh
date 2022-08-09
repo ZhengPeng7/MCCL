@@ -1,5 +1,6 @@
+#!/bin/bash
 # Set dst repo here.
-repo="VS-load2"
+repo="VS-load3"
 mkdir ../${repo}
 mkdir ../${repo}/evaluation
 mkdir ../${repo}/models

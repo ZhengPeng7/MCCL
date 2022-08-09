@@ -173,7 +173,6 @@ def main():
         #     },
         #     path=args.ckpt_dir)
         if epoch >= args.epochs - config.val_last:
-            print(11111111111)
             torch.save(model.state_dict(), os.path.join(args.ckpt_dir, 'ep{}.pth'.format(epoch)))
         lr_scheduler.step()
 

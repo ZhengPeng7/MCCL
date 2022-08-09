@@ -79,7 +79,7 @@ class CoData(data.Dataset):
                 final_num = final_num * Config().loadN
             else:
                 final_num = min(num, self.max_num)
-                sampled_list = random.sample(range(len(image_paths)), final_num)
+                sampled_list = random.sample(range(len(image_paths_0)), final_num)
                 image_paths = [image_paths_0[i] for i in sampled_list]
                 label_paths = [label_paths_0[i] for i in sampled_list]
         else:

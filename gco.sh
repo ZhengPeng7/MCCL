@@ -1,8 +1,9 @@
+#!/bin/bash
 # Run script
 method="$1"
 size=256
-epochs=150
-val_last=70
+epochs=100
+val_last=40
 
 # Train
 CUDA_VISIBLE_DEVICES=$2 python train.py --trainset DUTS_class --size ${size} --ckpt_dir ckpt/${method} --epochs ${epochs}

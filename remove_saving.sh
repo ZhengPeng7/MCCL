@@ -1,3 +1,4 @@
+#!/bin/bash
 # Val
 rm -r tmp*
 # Train
