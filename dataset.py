@@ -49,7 +49,7 @@ class CoData(data.Dataset):
         other_cls_ls.remove(item)
         other_items = random.sample(set(other_cls_ls), Config().loadN)
         other_nums = []
-        other_image_paths_list, other_label_paths_list = [], []
+        other_image_paths_list, other_label_paths_list = [image_paths_0], [label_paths_0]
 
         if self.is_train:
             if Config().loadN > 1:
@@ -65,16 +65,25 @@ class CoData(data.Dataset):
                     other_image_paths_list.append(other_image_paths)
                     other_label_paths_list.append(other_label_paths)
 
-                final_num = min(num, *other_nums, self.max_num)
+                if Config().auto_pad:
+                    if Config().auto_pad == 'fixed':
+                        final_num = self.max_num
+                    else:
+                        final_num = min(max(num, *other_nums), self.max_num)
+                else:
+                    final_num = min(num, *other_nums, self.max_num)
 
-                sampled_list = random.sample(range(len(image_paths_0)), final_num)
-                image_paths = [image_paths_0[i] for i in sampled_list]
-                label_paths = [label_paths_0[i] for i in sampled_list]
-
+                image_paths, label_paths = [], []
                 for idx_sel, (selected_image_paths, selected_label_paths) in enumerate(zip(other_image_paths_list, other_label_paths_list)):
-                    sampled_list = random.sample(range(len(selected_image_paths)), final_num)
-                    image_paths += [selected_image_paths[i] for i in sampled_list]
-                    label_paths += [selected_label_paths[i] for i in sampled_list]
+                    if Config().auto_pad:
+                        dup_times = final_num // len(selected_image_paths) + 1
+                        sampled_list = random.sample(range(len(selected_image_paths) * dup_times), final_num)
+                        image_paths += [(selected_image_paths * dup_times)[i] for i in sampled_list]
+                        label_paths += [(selected_label_paths * dup_times)[i] for i in sampled_list]
+                    else:
+                        sampled_list = random.sample(range(len(selected_image_paths)), final_num)
+                        image_paths += [selected_image_paths[i] for i in sampled_list]
+                        label_paths += [selected_label_paths[i] for i in sampled_list]
 
                 final_num = final_num * Config().loadN
             else:

@@ -12,14 +12,16 @@ class Config():
         self.preproc_methods = ['flip', 'enhance', 'rotate', 'crop', 'pepper'][:3]
 
         self.batch_size = 48
-        self.loadN = 2
+        self.loadN = 4
+        self.auto_pad = ['', 'fixed', 'adaptive'][2]
         self.optimizer = ['Adam', 'AdamW'][0]
         self.lr = 1e-4
         self.freeze = True
         self.lr_decay_epochs = [-20]    # Set to negative N to decay the lr in the last N-th epoch.
-        self.optimize_per_dataset = False
+        self.forward_per_dataset = True
         # Adv
-        self.lambda_adv = 0.        # turn to 0 to avoid adv training
+        self.lambda_adv_g = 0.        # turn to 0 to avoid adv training
+        self.lambda_adv_d = 0. * (self.lambda_adv_g > 0)
         # Loss
         losses = ['sal']
         self.loss = losses[:]

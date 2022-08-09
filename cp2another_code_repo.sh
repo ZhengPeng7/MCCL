@@ -1,6 +1,6 @@
 #!/bin/bash
 # Set dst repo here.
-repo="VS-opt2"
+repo="VS-load4-AP_adap"
 mkdir ../${repo}
 mkdir ../${repo}/evaluation
 mkdir ../${repo}/models

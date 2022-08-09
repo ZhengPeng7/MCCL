@@ -2,8 +2,9 @@
 # Run script
 method="$1"
 size=256
-epochs=100
+epochs=150
 val_last=40
+echo `date "+%Y-%m-%d %H:%M:%S"`
 
 # Train
 CUDA_VISIBLE_DEVICES=$2 python train.py --trainset DUTS_class+coco-seg --size ${size} --ckpt_dir ckpt/${method} --epochs ${epochs}
@@ -26,6 +27,7 @@ done
 
 # CUDA_VISIBLE_DEVICES=$2 python evaluation/main.py --model_dir ${method}/ep$[${ep}-${step}] --txt_name ${method}
 CUDA_VISIBLE_DEVICES=$2 python evaluation/main.py --model_dir ${method} --txt_name ${method}
+echo `date "+%Y-%m-%d %H:%M:%S"`
 
 nvidia-smi
 hostname

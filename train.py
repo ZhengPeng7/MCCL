@@ -115,7 +115,7 @@ logger_loss_idx = 1
 device = torch.device("cuda")
 
 model = GCoNet().to(device)
-if config.lambda_adv:
+if config.lambda_adv_g:
     from adv import Discriminator
     disc = Discriminator(channels=1, img_size=args.size).to(device)
     optimizer_d = optim.Adam(params=disc.parameters(), lr=config.lr, weight_decay=0)
@@ -213,13 +213,13 @@ def train(epoch):
         # Loss
         # since there may be several losses for sal, the lambdas for them (lambdas_sal) are inside the loss.py
         loss = loss_sal * 1.0
-        if config.lambda_adv:
+        if config.lambda_adv_g:
             # gen
             valid = Variable(Tensor(scaled_preds[-1].shape[0], 1).fill_(1.0), requires_grad=False)
             adv_loss_g = adv_criterion(disc(scaled_preds[-1]), valid)
-            loss += adv_loss_g * config.lambda_adv
+            loss += adv_loss_g * config.lambda_adv_g
 
-        if config.optimize_per_dataset:
+        if config.forward_per_dataset:
             loss_log.update(loss, inputs.size(0))
             if config.lambdas_sal_last['triplet']:
                 loss_log_triplet.update(loss_triplet, inputs.size(0))
@@ -259,16 +259,16 @@ def train(epoch):
             loss_sal += loss_ss * 0.3
 
         # Loss
-        if config.optimize_per_dataset:
+        if config.forward_per_dataset:
             loss = loss_sal * 1.0
         else:
             loss += loss_sal * 1.0
 
-        if config.lambda_adv:
+        if config.lambda_adv_g:
             # gen
             valid = Variable(Tensor(scaled_preds[-1].shape[0], 1).fill_(1.0), requires_grad=False)
             adv_loss_g = adv_criterion(disc(scaled_preds[-1]), valid)
-            loss += adv_loss_g * config.lambda_adv
+            loss += adv_loss_g * config.lambda_adv_g
 
         loss_log.update(loss, inputs.size(0))
         if config.lambdas_sal_last['triplet']:
@@ -283,13 +283,13 @@ def train(epoch):
         logger_loss_idx += 1
         #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#
 
-        if config.lambda_adv and batch_idx % 5 == 0:
+        if config.lambda_adv_g and batch_idx % 5 == 0:
             # disc
             fake = Variable(Tensor(scaled_preds[-1].shape[0], 1).fill_(0.0), requires_grad=False)
             optimizer_d.zero_grad()
             adv_loss_real = adv_criterion(disc(gts), valid)
             adv_loss_fake = adv_criterion(disc(scaled_preds[-1].detach()), fake)
-            adv_loss_d = (adv_loss_real + adv_loss_fake) / 2 * 1.
+            adv_loss_d = (adv_loss_real + adv_loss_fake) / 2 * config.lambda_adv_d
             adv_loss_d.backward()
             optimizer_d.step()
 
@@ -298,8 +298,8 @@ def train(epoch):
             # NOTE: Top2Down; [0] is the grobal slamap and [5] is the final output
             info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}]'.format(epoch, args.epochs, batch_idx, len(train_loader))
             info_loss = 'Train Loss: loss_sal: {:.3f}'.format(loss_sal)
-            if config.lambda_adv:
-                info_loss += ', loss_adv: {:.3f}, loss_adv_disc: {:.3f}'.format(adv_loss_g, adv_loss_d)
+            if config.lambda_adv_g:
+                info_loss += ', loss_adv: {:.3f}, loss_adv_disc: {:.3f}'.format(adv_loss_g * config.lambda_adv_g, adv_loss_d * config.lambda_adv_d)
             if config.lambdas_sal_last['triplet']:
                 info_loss += ', loss_triplet: {:.3f}'.format(loss_triplet)
             info_loss += ', Loss_total: {loss.val:.3f} ({loss.avg:.3f})  '.format(loss=loss_log)
