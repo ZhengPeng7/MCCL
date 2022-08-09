@@ -11,12 +11,15 @@ class Config():
         # Augmentation
         self.preproc_methods = ['flip', 'enhance', 'rotate', 'crop', 'pepper'][:3]
 
-        self.batch_size = 32
+        self.batch_size = 48
         self.loadN = 2
         self.optimizer = ['Adam', 'AdamW'][0]
         self.lr = 1e-4
         self.freeze = True
         self.lr_decay_epochs = [-20]    # Set to negative N to decay the lr in the last N-th epoch.
+        self.optimize_per_dataset = True
+        # Adv
+        self.lambda_adv = 0.        # turn to 0 to avoid adv training
         # Loss
         losses = ['sal']
         self.loss = losses[:]
@@ -42,8 +45,6 @@ class Config():
         # Triplet Loss
         self.triplet = ['_x5', 'mask'][:1]
         self.triplet_loss_margin = 0.1
-        # Adv
-        self.lambda_adv = 0.        # turn to 0 to avoid adv training
 
 
         # Intermediate Layers

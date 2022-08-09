@@ -151,7 +151,7 @@ logger.info("Other hyperparameters:")
 logger.info(args)
 
 # Setting Loss
-sal_oss = SalLoss()
+sal_loss = SalLoss()
 
 
 def main():
@@ -196,11 +196,11 @@ def train(epoch):
 
         # Tricks
         if config.lambdas_sal_last['triplet']:
-            loss_sal, loss_triplet = sal_oss(scaled_preds, gts, norm_features=norm_features, labels=cls_gts)
+            loss_sal, loss_triplet = sal_loss(scaled_preds, gts, norm_features=norm_features, labels=cls_gts)
         else:
-            loss_sal = sal_oss(scaled_preds, gts)
+            loss_sal = sal_loss(scaled_preds, gts)
         if config.label_smoothing:
-            loss_sal = 0.5 * (loss_sal + sal_oss(scaled_preds, generate_smoothed_gt(gts)))
+            loss_sal = 0.5 * (loss_sal + sal_loss(scaled_preds, generate_smoothed_gt(gts)))
         if config.self_supervision:
             H, W = inputs.shape[-2:]
             images_scale = F.interpolate(inputs, size=(H//4, W//4), mode='bilinear', align_corners=True)
@@ -211,23 +211,22 @@ def train(epoch):
             loss_sal += loss_ss * 0.3
 
         # Loss
-        loss = 0
         # since there may be several losses for sal, the lambdas for them (lambdas_sal) are inside the loss.py
-        loss_sal = loss_sal * 1
-        loss += loss_sal
+        loss = loss_sal * 1.0
         if config.lambda_adv:
             # gen
             valid = Variable(Tensor(scaled_preds[-1].shape[0], 1).fill_(1.0), requires_grad=False)
             adv_loss_g = adv_criterion(disc(scaled_preds[-1]), valid)
             loss += adv_loss_g * config.lambda_adv
 
-        loss_log.update(loss, inputs.size(0))
-        if config.lambdas_sal_last['triplet']:
-            loss_log_triplet.update(loss_triplet, inputs.size(0))
+        if config.optimize_per_dataset:
+            loss_log.update(loss, inputs.size(0))
+            if config.lambdas_sal_last['triplet']:
+                loss_log_triplet.update(loss_triplet, inputs.size(0))
 
-        # optimizer.zero_grad()
-        # loss.backward()
-        # optimizer.step()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
         #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#
         inputs = batch_seg[0].to(device).squeeze(0)
@@ -245,11 +244,11 @@ def train(epoch):
 
         # Tricks
         if config.lambdas_sal_last['triplet']:
-            loss_sal, loss_triplet = sal_oss(scaled_preds, gts, norm_features=norm_features, labels=cls_gts)
+            loss_sal, loss_triplet = sal_loss(scaled_preds, gts, norm_features=norm_features, labels=cls_gts)
         else:
-            loss_sal = sal_oss(scaled_preds, gts)
+            loss_sal = sal_loss(scaled_preds, gts)
         if config.label_smoothing:
-            loss_sal = 0.5 * (loss_sal + sal_oss(scaled_preds, generate_smoothed_gt(gts)))
+            loss_sal = 0.5 * (loss_sal + sal_loss(scaled_preds, generate_smoothed_gt(gts)))
         if config.self_supervision:
             H, W = inputs.shape[-2:]
             images_scale = F.interpolate(inputs, size=(H//4, W//4), mode='bilinear', align_corners=True)
@@ -260,10 +259,11 @@ def train(epoch):
             loss_sal += loss_ss * 0.3
 
         # Loss
-        # loss = 0
-        # since there may be several losses for sal, the lambdas for them (lambdas_sal) are inside the loss.py
-        loss_sal = loss_sal * 1
-        loss += loss_sal
+        if config.optimize_per_dataset:
+            loss = loss_sal * 1.0
+        else:
+            loss += loss_sal * 1.0
+
         if config.lambda_adv:
             # gen
             valid = Variable(Tensor(scaled_preds[-1].shape[0], 1).fill_(1.0), requires_grad=False)
@@ -273,13 +273,14 @@ def train(epoch):
         loss_log.update(loss, inputs.size(0))
         if config.lambdas_sal_last['triplet']:
             loss_log_triplet.update(loss_triplet, inputs.size(0))
-        with open(logger_loss_file, 'a') as f:
-            f.write('step {}, {}\n'.format(logger_loss_idx, loss))
-        logger_loss_idx += 1
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+        with open(logger_loss_file, 'a') as f:
+            f.write('step {}, {}\n'.format(logger_loss_idx, loss))
+        logger_loss_idx += 1
         #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#
 
         if config.lambda_adv and batch_idx % 5 == 0:
@@ -297,6 +298,8 @@ def train(epoch):
             # NOTE: Top2Down; [0] is the grobal slamap and [5] is the final output
             info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}]'.format(epoch, args.epochs, batch_idx, len(train_loader))
             info_loss = 'Train Loss: loss_sal: {:.3f}'.format(loss_sal)
+            if config.lambda_adv:
+                info_loss += ', loss_adv: {:.3f}, loss_adv_disc: {:.3f}'.format(adv_loss_g, adv_loss_d)
             if config.lambdas_sal_last['triplet']:
                 info_loss += ', loss_triplet: {:.3f}'.format(loss_triplet)
             info_loss += ', Loss_total: {loss.val:.3f} ({loss.avg:.3f})  '.format(loss=loss_log)
