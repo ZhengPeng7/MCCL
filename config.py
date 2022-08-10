@@ -12,8 +12,8 @@ class Config():
         self.preproc_methods = ['flip', 'enhance', 'rotate', 'crop', 'pepper'][:3]
 
         self.batch_size = 48
-        self.loadN = 4
-        self.auto_pad = ['', 'fixed', 'adaptive'][2]
+        self.loadN = 2
+        self.auto_pad = ['', 'fixed', 'adaptive'][0]
         self.optimizer = ['Adam', 'AdamW'][0]
         self.lr = 1e-4
         self.freeze = True

@@ -2,9 +2,8 @@
 # Run script
 method="$1"
 size=256
-epochs=150
-val_last=40
-echo `date "+%Y-%m-%d %H:%M:%S"`
+epochs=200
+val_last=70
 
 # Train
 CUDA_VISIBLE_DEVICES=$2 python train.py --trainset DUTS_class+coco-seg --size ${size} --ckpt_dir ckpt/${method} --epochs ${epochs}
@@ -17,7 +16,7 @@ if [ "${method}" ] ;then
     rm -rf /root/autodl-tmp/datasets/sod/preds/${method}
 fi
 
-step=5
+step=7
 for ((ep=${epochs};ep>${epochs}-${val_last};ep-=${step}))
 do
 pred_dir=/root/autodl-tmp/datasets/sod/preds/${method}/ep${ep}
@@ -27,7 +26,6 @@ done
 
 # CUDA_VISIBLE_DEVICES=$2 python evaluation/main.py --model_dir ${method}/ep$[${ep}-${step}] --txt_name ${method}
 CUDA_VISIBLE_DEVICES=$2 python evaluation/main.py --model_dir ${method} --txt_name ${method}
-echo `date "+%Y-%m-%d %H:%M:%S"`
 
 nvidia-smi
 hostname
