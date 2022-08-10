@@ -11,6 +11,10 @@ class Config():
         # Augmentation
         self.preproc_methods = ['flip', 'enhance', 'rotate', 'crop', 'pepper'][:3]
 
+        # Components
+        self.consensus = ['', 'GAM', 'GWM', 'SGS'][1]
+        self.dec_blk = ['ResBlk', 'CNXBlk'][0]
+        # Training
         self.batch_size = 48
         self.loadN = 2
         self.auto_pad = ['', 'fixed', 'adaptive'][0]
@@ -38,10 +42,6 @@ class Config():
             'triplet': 3 * 0 * ('cls' in self.loss),
         }
 
-        self.consensus = ['', 'GAM', 'GWM', 'SGS'][1]
-        self.dec_blk = ['ResBlk', 'CNXBlk'][0]
-        if self.consensus != 'GAM' and 'contrast' in self.loss:
-            self.loss.remove('contrast')
         self.db_output_decoder = False
         self.refine = False
         self.db_output_refiner = False
