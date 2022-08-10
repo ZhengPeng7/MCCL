@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torchvision.models import vgg16, vgg16_bn
 from torchvision.models import resnet50
 
-from models.modules import ResBlk, CoAttLayer, GWM, SGS
+from models.modules import CNXBlk, ResBlk, CoAttLayer, GWM, SGS
 from models.pvt import pvt_v2_b2
 from config import Config
 
@@ -68,18 +68,23 @@ class GCoNet(nn.Module):
         elif self.config.consensus == 'GWM':
             self.co_x4 = GWM(channel_in=lateral_channels_in[bb][0])
 
-        self.top_layer = ResBlk(lateral_channels_in[bb][0], lateral_channels_in[bb][1])
+        if self.config.dec_blk == 'ResBlk':
+            DecBlk = ResBlk
+        elif self.config.dec_blk == 'CNXBlk':
+            DecBlk = CNXBlk
 
-        self.dec_layer4 = ResBlk(lateral_channels_in[bb][1], lateral_channels_in[bb][1])
+        self.top_layer = DecBlk(lateral_channels_in[bb][0], lateral_channels_in[bb][1])
+
+        self.dec_layer4 = DecBlk(lateral_channels_in[bb][1], lateral_channels_in[bb][1])
         self.lat_layer4 = nn.Conv2d(lateral_channels_in[bb][1], lateral_channels_in[bb][1], 1, 1, 0)
 
-        self.dec_layer3 = ResBlk(lateral_channels_in[bb][1], lateral_channels_in[bb][2])
+        self.dec_layer3 = DecBlk(lateral_channels_in[bb][1], lateral_channels_in[bb][2])
         self.lat_layer3 = nn.Conv2d(lateral_channels_in[bb][2], lateral_channels_in[bb][2], 1, 1, 0)
 
-        self.dec_layer2 = ResBlk(lateral_channels_in[bb][2], lateral_channels_in[bb][3])
+        self.dec_layer2 = DecBlk(lateral_channels_in[bb][2], lateral_channels_in[bb][3])
         self.lat_layer2 = nn.Conv2d(lateral_channels_in[bb][3], lateral_channels_in[bb][3], 1, 1, 0)
 
-        self.dec_layer1 = ResBlk(lateral_channels_in[bb][3], lateral_channels_in[bb][3]//2)
+        self.dec_layer1 = DecBlk(lateral_channels_in[bb][3], lateral_channels_in[bb][3]//2)
         self.conv_out1 = nn.Sequential(nn.Conv2d(lateral_channels_in[bb][3]//2, 1, 1, 1, 0))
 
 

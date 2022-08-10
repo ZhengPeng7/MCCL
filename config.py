@@ -39,6 +39,7 @@ class Config():
         }
 
         self.consensus = ['', 'GAM', 'GWM', 'SGS'][1]
+        self.dec_blk = ['ResBlk', 'CNXBlk'][0]
         if self.consensus != 'GAM' and 'contrast' in self.loss:
             self.loss.remove('contrast')
         self.db_output_decoder = False
