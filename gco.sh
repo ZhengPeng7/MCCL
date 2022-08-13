@@ -2,8 +2,8 @@
 # Run script
 method="$1"
 size=256
-epochs=300
-val_last=140
+epochs=350
+val_last=100
 
 # Train
 CUDA_VISIBLE_DEVICES=$2 python train.py --trainset DUTS_class+coco-seg --size ${size} --ckpt_dir ckpt/${method} --epochs ${epochs}
@@ -16,7 +16,7 @@ if [ "${method}" ] ;then
     rm -rf /root/autodl-tmp/datasets/sod/preds/${method}
 fi
 
-step=7
+step=10
 for ((ep=${epochs};ep>${epochs}-${val_last};ep-=${step}))
 do
 pred_dir=/root/autodl-tmp/datasets/sod/preds/${method}/ep${ep}

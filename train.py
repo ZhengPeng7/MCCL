@@ -3,18 +3,12 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
-from util import Logger, AverageMeter, save_checkpoint, save_tensor_img, set_seed
+from util import Logger, AverageMeter, set_seed
 import os
-import numpy as np
-from matplotlib import pyplot as plt
-import time
 import argparse
-from tqdm import tqdm
 from dataset import get_loader
-import torchvision.utils as vutils
 
 import torch.nn.functional as F
-import pytorch_toolbelt.losses as PTL
 
 from config import Config
 from loss import saliency_structure_consistency, SalLoss
@@ -88,6 +82,20 @@ if 'coco-seg' in args.trainset.split('+'):
         num_workers=8,
         pin=True
     )
+if 'coco-9k' in args.trainset.split('+'):
+    train_img_path_seg = os.path.join(root_dir, 'images/coco-9k')
+    train_gt_path_seg = os.path.join(root_dir, 'gts/coco-9k')
+    train_loader_seg = get_loader(
+        train_img_path_seg,
+        train_gt_path_seg,
+        args.size,
+        1,
+        max_num=config.batch_size,
+        istrain=True,
+        shuffle=True,
+        num_workers=8,
+        pin=True
+    )
 # else:
 #     print('Unkonwn train dataset')
 #     print(args.dataset)
@@ -115,12 +123,6 @@ logger_loss_idx = 1
 device = torch.device("cuda")
 
 model = GCoNet().to(device)
-if config.lambda_adv_g:
-    from adv import Discriminator
-    disc = Discriminator(channels=1, img_size=args.size).to(device)
-    optimizer_d = optim.Adam(params=disc.parameters(), lr=config.lr, weight_decay=0)
-    Tensor = torch.cuda.FloatTensor if (True if torch.cuda.is_available() else False) else torch.FloatTensor
-    adv_criterion = nn.BCELoss()
 
 # Setting optimizer
 if config.optimizer == 'AdamW':
@@ -132,6 +134,21 @@ lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
     milestones=[lde if lde > 0 else args.epochs + lde for lde in config.lr_decay_epochs],
     gamma=0.1
 )
+
+if config.lambda_adv_g:
+    from adv import Discriminator
+    disc = Discriminator(channels=3, img_size=args.size).to(device)
+    Tensor = torch.cuda.FloatTensor if (True if torch.cuda.is_available() else False) else torch.FloatTensor
+    adv_criterion = nn.BCELoss()
+    if config.optimizer == 'AdamW':
+        optimizer_d = optim.AdamW(params=model.parameters(), lr=config.lr, weight_decay=1e-2)
+    elif config.optimizer == 'Adam':
+        optimizer_d = optim.Adam(params=model.parameters(), lr=config.lr, weight_decay=0)
+    lr_scheduler_d = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer_d,
+        milestones=[lde if lde > 0 else args.epochs + lde for lde in config.lr_decay_epochs],
+        gamma=0.1
+    )
 
 # Why freeze the backbone?...
 if config.freeze:
@@ -155,8 +172,6 @@ sal_loss = SalLoss()
 
 
 def main():
-    val_measures = []
-
     # Optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
@@ -168,9 +183,11 @@ def main():
     for epoch in range(args.start_epoch, args.epochs+1):
         train_loss = train(epoch)
         # Save checkpoint
-        if epoch >= args.epochs - config.val_last:
+        if epoch >= args.epochs - config.val_last and (args.epochs - epoch) % config.save_step == 0:
             torch.save(model.state_dict(), os.path.join(args.ckpt_dir, 'ep{}.pth'.format(epoch)))
         lr_scheduler.step()
+        if config.lambda_adv_g:
+            lr_scheduler_d.step()
 
 
 def train(epoch):
@@ -178,15 +195,12 @@ def train(epoch):
     loss_log_triplet = AverageMeter()
     global logger_loss_idx
     model.train()
-    FL = PTL.BinaryFocalLoss()
 
     for batch_idx, (batch, batch_seg) in enumerate(zip(train_loader, train_loader_seg)):
         inputs = batch[0].to(device).squeeze(0)
         gts = batch[1].to(device).squeeze(0)
         cls_gts = torch.LongTensor(batch[-1]).to(device)
-        
-        gts_neg = torch.full_like(gts, 0.0)
-        gts_cat = torch.cat([gts, gts_neg], dim=0)
+
         return_values = model(inputs)
         scaled_preds = return_values[0]
         norm_features = None
@@ -216,7 +230,7 @@ def train(epoch):
         if config.lambda_adv_g:
             # gen
             valid = Variable(Tensor(scaled_preds[-1].shape[0], 1).fill_(1.0), requires_grad=False)
-            adv_loss_g = adv_criterion(disc(scaled_preds[-1]), valid)
+            adv_loss_g = adv_criterion(disc(scaled_preds[-1] * inputs), valid)
             loss += adv_loss_g * config.lambda_adv_g
 
         if config.forward_per_dataset:
@@ -233,8 +247,6 @@ def train(epoch):
         gts = batch_seg[1].to(device).squeeze(0)
         cls_gts = torch.LongTensor(batch_seg[-1]).to(device)
 
-        gts_neg = torch.full_like(gts, 0.0)
-        gts_cat = torch.cat([gts, gts_neg], dim=0)
         return_values = model(inputs)
         scaled_preds = return_values[0]
         norm_features = None
@@ -267,7 +279,7 @@ def train(epoch):
         if config.lambda_adv_g:
             # gen
             valid = Variable(Tensor(scaled_preds[-1].shape[0], 1).fill_(1.0), requires_grad=False)
-            adv_loss_g = adv_criterion(disc(scaled_preds[-1]), valid)
+            adv_loss_g = adv_criterion(disc(scaled_preds[-1] * inputs), valid)
             loss += adv_loss_g * config.lambda_adv_g
 
         loss_log.update(loss, inputs.size(0))
@@ -283,12 +295,12 @@ def train(epoch):
         logger_loss_idx += 1
         #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#
 
-        if config.lambda_adv_g and batch_idx % 5 == 0:
+        if config.lambda_adv_g and batch_idx % 2 == 0:
             # disc
             fake = Variable(Tensor(scaled_preds[-1].shape[0], 1).fill_(0.0), requires_grad=False)
             optimizer_d.zero_grad()
-            adv_loss_real = adv_criterion(disc(gts), valid)
-            adv_loss_fake = adv_criterion(disc(scaled_preds[-1].detach()), fake)
+            adv_loss_real = adv_criterion(disc(gts * inputs), valid)
+            adv_loss_fake = adv_criterion(disc(scaled_preds[-1].detach() * inputs.detach()), fake)
             adv_loss_d = (adv_loss_real + adv_loss_fake) / 2 * config.lambda_adv_d
             adv_loss_d.backward()
             optimizer_d.step()

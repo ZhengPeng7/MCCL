@@ -5,7 +5,7 @@ class Config():
     def __init__(self) -> None:
         # Backbone
         self.bb = ['cnn-vgg16', 'cnn-vgg16bn', 'cnn-resnet50', 'trans-pvt'][3]
-        self.pvt_weights = ['../bb_weights/pvt_v2_b2.pth'][0]
+        self.pvt_weights = ['../bb_weights/pvt_v2_b2.pth', ''][0]
         # BN
         self.use_bn = self.bb not in ['cnn-vgg16']
         # Augmentation
@@ -18,7 +18,7 @@ class Config():
         self.batch_size = 48
         self.loadN = 2
         self.auto_pad = ['', 'fixed', 'adaptive'][0]
-        self.optimizer = ['Adam', 'AdamW'][0]
+        self.optimizer = ['Adam', 'AdamW'][1]
         self.lr = 1e-4
         self.freeze = True
         self.lr_decay_epochs = [-20]    # Set to negative N to decay the lr in the last N-th epoch.
@@ -91,3 +91,4 @@ class Config():
         run_sh_file = [f for f in os.listdir('.') if 'gco' in f and '.sh' in f] + [os.path.join('..', f) for f in os.listdir('..') if 'gco' in f and '.sh' in f]
         with open(run_sh_file[0], 'r') as f:
             self.val_last = int([l.strip() for l in f.readlines() if 'val_last=' in l][0].split('=')[-1])
+            self.save_step = int([l.strip() for l in f.readlines() if 'step=' in l][0].split('=')[-1])

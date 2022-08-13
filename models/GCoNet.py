@@ -22,8 +22,7 @@ class GCoNet(nn.Module):
                 'conv1': bb_net[:4],
                 'conv2': bb_net[4:9],
                 'conv3': bb_net[9:16],
-                'conv4': bb_net[16:23],
-                'conv5': bb_net[23:30]
+                'conv4': bb_net[16:23]
             })
         elif bb == 'cnn-vgg16bn':
             bb_net = list(vgg16_bn(pretrained=True).children())[0]
@@ -31,8 +30,7 @@ class GCoNet(nn.Module):
                 'conv1': bb_net[:6],
                 'conv2': bb_net[6:13],
                 'conv3': bb_net[13:23],
-                'conv4': bb_net[23:33],
-                'conv5': bb_net[33:43]
+                'conv4': bb_net[23:33]
             })
         elif bb == 'cnn-resnet50':
             bb_net = list(resnet50(pretrained=True).children())
@@ -40,8 +38,7 @@ class GCoNet(nn.Module):
                 'conv1': nn.Sequential(*bb_net[0:3]),
                 'conv2': bb_net[4],
                 'conv3': bb_net[5],
-                'conv4': bb_net[6],
-                'conv5': bb_net[7]
+                'conv4': bb_net[6]
             })
         elif bb == 'trans-pvt':
             self.bb = pvt_v2_b2()

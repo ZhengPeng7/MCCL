@@ -79,7 +79,7 @@ if __name__ == '__main__':
                        type=str,
                        help="Options: 'CoCA','CoSal2015','CoSOD3k','iCoseg','MSRC'")
     parser.add_argument('--size',
-                        default=224,
+                        default=256,
                         type=int,
                         help='input size')
     parser.add_argument('--ckpt', default='./ckpt/gconet/final.pth', type=str, help='model folder')
