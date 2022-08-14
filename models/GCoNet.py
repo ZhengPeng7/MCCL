@@ -58,7 +58,7 @@ class GCoNet(nn.Module):
             'trans-pvt': [512, 320, 128, 64],
         }
 
-        if self.config.consensus == 'GAM':
+        if self.config.consensus == 'GCAM':
             self.co_x4 = CoAttLayer(channel_in=lateral_channels_in[bb][0])
         elif self.config.consensus == 'SGS':
             self.co_x4 = SGS(channel_in=lateral_channels_in[bb][0])
@@ -124,7 +124,7 @@ class GCoNet(nn.Module):
         scaled_preds.append(p1_out)
 
         if self.training:
-            return_values = [scaled_preds]
+            return_values = [scaled_preds, x4]
             return return_values
         else:
             return scaled_preds

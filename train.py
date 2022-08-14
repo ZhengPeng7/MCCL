@@ -204,12 +204,12 @@ def train(epoch):
         return_values = model(inputs)
         scaled_preds = return_values[0]
         norm_features = None
-        if config.lambdas_sal_last['triplet']:
+        if config.GCAM_metric:
             norm_features = return_values[-1]
         scaled_preds = scaled_preds[-min(config.loss_sal_layers+int(bool(config.refine)), 4+int(bool(config.refine))):]
 
         # Tricks
-        if config.lambdas_sal_last['triplet']:
+        if config.GCAM_metric:
             loss_sal, loss_triplet = sal_loss(scaled_preds, gts, norm_features=norm_features, labels=cls_gts)
         else:
             loss_sal = sal_loss(scaled_preds, gts)
@@ -235,7 +235,7 @@ def train(epoch):
 
         if config.forward_per_dataset:
             loss_log.update(loss, inputs.size(0))
-            if config.lambdas_sal_last['triplet']:
+            if config.GCAM_metric:
                 loss_log_triplet.update(loss_triplet, inputs.size(0))
 
             optimizer.zero_grad()
@@ -250,12 +250,12 @@ def train(epoch):
         return_values = model(inputs)
         scaled_preds = return_values[0]
         norm_features = None
-        if config.lambdas_sal_last['triplet']:
+        if config.GCAM_metric:
             norm_features = return_values[-1]
         scaled_preds = scaled_preds[-min(config.loss_sal_layers+int(bool(config.refine)), 4+int(bool(config.refine))):]
 
         # Tricks
-        if config.lambdas_sal_last['triplet']:
+        if config.GCAM_metric:
             loss_sal, loss_triplet = sal_loss(scaled_preds, gts, norm_features=norm_features, labels=cls_gts)
         else:
             loss_sal = sal_loss(scaled_preds, gts)
@@ -283,7 +283,7 @@ def train(epoch):
             loss += adv_loss_g * config.lambda_adv_g
 
         loss_log.update(loss, inputs.size(0))
-        if config.lambdas_sal_last['triplet']:
+        if config.GCAM_metric:
             loss_log_triplet.update(loss_triplet, inputs.size(0))
 
         optimizer.zero_grad()
@@ -312,12 +312,12 @@ def train(epoch):
             info_loss = 'Train Loss: loss_sal: {:.3f}'.format(loss_sal)
             if config.lambda_adv_g:
                 info_loss += ', loss_adv: {:.3f}, loss_adv_disc: {:.3f}'.format(adv_loss_g * config.lambda_adv_g, adv_loss_d * config.lambda_adv_d)
-            if config.lambdas_sal_last['triplet']:
+            if config.GCAM_metric:
                 info_loss += ', loss_triplet: {:.3f}'.format(loss_triplet)
             info_loss += ', Loss_total: {loss.val:.3f} ({loss.avg:.3f})  '.format(loss=loss_log)
             logger.info(''.join((info_progress, info_loss)))
     info_loss = '@==Final== Epoch[{0}/{1}]  Train Loss: {loss.avg:.3f}  '.format(epoch, args.epochs, loss=loss_log)
-    if config.lambdas_sal_last['triplet']:
+    if config.GCAM_metric:
         info_loss += 'Triplet Loss: {loss.avg:.3f}  '.format(loss=loss_log_triplet)
     logger.info(info_loss)
 

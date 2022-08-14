@@ -24,8 +24,8 @@ pred_dir=/root/autodl-tmp/datasets/sod/preds/${method}/ep${ep}
 CUDA_VISIBLE_DEVICES=$2 python test.py --pred_dir ${pred_dir} --ckpt ckpt/${method}/ep${ep}.pth --size ${size}
 done
 
-# CUDA_VISIBLE_DEVICES=$2 python evaluation/main.py --model_dir ${method}/ep$[${ep}-${step}] --txt_name ${method}
-CUDA_VISIBLE_DEVICES=$2 python evaluation/main.py --model_dir ${method} --txt_name ${method}
+# python evaluation/main.py --model_dir ${method}/ep$[${ep}-${step}] --txt_name ${method}
+python evaluation/main.py --model_dir ${method} --txt_name ${method}
 
 nvidia-smi
 hostname

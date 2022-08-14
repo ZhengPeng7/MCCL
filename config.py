@@ -12,8 +12,9 @@ class Config():
         self.preproc_methods = ['flip', 'enhance', 'rotate', 'crop', 'pepper'][:3]
 
         # Components
-        self.consensus = ['', 'GAM', 'GWM', 'SGS'][1]
+        self.consensus = ['', 'GCAM', 'GWM', 'SGS'][1]
         self.dec_blk = ['ResBlk', 'CNXBlk'][0]
+        self.GCAM_metric = ['online', 'offline', ''][0]
         # Training
         self.batch_size = 48
         self.loadN = 2
@@ -24,8 +25,8 @@ class Config():
         self.lr_decay_epochs = [-20]    # Set to negative N to decay the lr in the last N-th epoch.
         self.forward_per_dataset = True
         # Adv
-        self.lambda_adv_g = 0.        # turn to 0 to avoid adv training
-        self.lambda_adv_d = 0. * (self.lambda_adv_g > 0)
+        self.lambda_adv_g = 10. * 0        # turn to 0 to avoid adv training
+        self.lambda_adv_d = 3. * (self.lambda_adv_g > 0)
         # Loss
         losses = ['sal']
         self.loss = losses[:]
@@ -39,7 +40,7 @@ class Config():
             'ssim': 1 * 0,          # help contours
             'mse': 150 * 0,         # can smooth the saliency map
             'reg': 100 * 0,
-            'triplet': 3 * 0 * ('cls' in self.loss),
+            'triplet': 3 * 1,
         }
 
         self.db_output_decoder = False
@@ -90,5 +91,6 @@ class Config():
         self.rand_seed = 7
         run_sh_file = [f for f in os.listdir('.') if 'gco' in f and '.sh' in f] + [os.path.join('..', f) for f in os.listdir('..') if 'gco' in f and '.sh' in f]
         with open(run_sh_file[0], 'r') as f:
-            self.val_last = int([l.strip() for l in f.readlines() if 'val_last=' in l][0].split('=')[-1])
-            self.save_step = int([l.strip() for l in f.readlines() if 'step=' in l][0].split('=')[-1])
+            lines = f.readlines()
+            self.val_last = int([l.strip() for l in lines if 'val_last=' in l][0].split('=')[-1])
+            self.save_step = int([l.strip() for l in lines if 'step=' in l][0].split('=')[-1])

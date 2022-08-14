@@ -177,7 +177,7 @@ class CoAttLayer(nn.Module):
     def __init__(self, channel_in=512):
         super(CoAttLayer, self).__init__()
 
-        self.all_attention = GAM(channel_in)
+        self.all_attention = GCAM(channel_in)
     
     def forward(self, x):
         if self.training:
@@ -209,10 +209,10 @@ class CoAttLayer(nn.Module):
         return weighted_x
 
 
-class GAM(nn.Module):
+class GCAM(nn.Module):
     def __init__(self, channel_in=512):
 
-        super(GAM, self).__init__()
+        super(GCAM, self).__init__()
         self.query_transform = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0) 
         self.key_transform = nn.Conv2d(channel_in, channel_in, kernel_size=1, stride=1, padding=0) 
 
