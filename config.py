@@ -14,7 +14,7 @@ class Config():
         # Components
         self.consensus = ['', 'GCAM', 'GWM', 'SGS'][1]
         self.dec_blk = ['ResBlk', 'CNXBlk'][0]
-        self.GCAM_metric = ['online', 'offline', ''][0]
+        self.GCAM_metric = ['online', 'offline', ''][0] if self.consensus else ''
         # Training
         self.batch_size = 48
         self.loadN = 2
@@ -25,7 +25,7 @@ class Config():
         self.lr_decay_epochs = [-20]    # Set to negative N to decay the lr in the last N-th epoch.
         self.forward_per_dataset = True
         # Adv
-        self.lambda_adv_g = 10. * 0        # turn to 0 to avoid adv training
+        self.lambda_adv_g = 10. * 1        # turn to 0 to avoid adv training
         self.lambda_adv_d = 3. * (self.lambda_adv_g > 0)
         # Loss
         losses = ['sal']
