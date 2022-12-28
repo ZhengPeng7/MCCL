@@ -158,8 +158,8 @@ if config.freeze:
 
 
 # log model and optimizer params
-logger.info("Model details:")
-logger.info(model)
+# logger.info("Model details:")
+# logger.info(model)
 logger.info("Optimizer details:")
 logger.info(optimizer)
 logger.info("Scheduler details:")

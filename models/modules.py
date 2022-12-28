@@ -12,111 +12,13 @@ from config import Config
 config = Config()
 
 
-def drop_path(x, drop_prob: float = 0., training: bool = False):
-    """Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks).
-    This is the same as the DropConnect impl I created for EfficientNet, etc networks, however,
-    the original name is misleading as 'Drop Connect' is a different form of dropout in a separate paper...
-    See discussion: https://github.com/tensorflow/tpu/issues/494#issuecomment-532968956 ... I've opted for
-    changing the layer and argument names to 'drop path' rather than mix DropConnect as a layer name and use
-    'survival rate' as the argument.
-    """
-    if drop_prob == 0. or not training:
-        return x
-    keep_prob = 1 - drop_prob
-    shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
-    random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
-    random_tensor.floor_()  # binarize
-    output = x.div(keep_prob) * random_tensor
-    return output
-
-
-class DropPath(nn.Module):
-    """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks).
-    """
-    def __init__(self, drop_prob=None):
-        super(DropPath, self).__init__()
-        self.drop_prob = drop_prob
-
-    def forward(self, x):
-        return drop_path(x, self.drop_prob, self.training)
-
-
-class LayerNorm(nn.Module):
-    r""" LayerNorm that supports two data formats: channels_last (default) or channels_first.
-    The ordering of the dimensions in the inputs. channels_last corresponds to inputs with
-    shape (batch_size, height, width, channels) while channels_first corresponds to inputs
-    with shape (batch_size, channels, height, width).
-    """
-
-    def __init__(self, normalized_shape, eps=1e-6, data_format="channels_last"):
-        super(LayerNorm, self).__init__()
-        self.weight = nn.Parameter(torch.ones(normalized_shape), requires_grad=True)
-        self.bias = nn.Parameter(torch.zeros(normalized_shape), requires_grad=True)
-        self.eps = eps
-        self.data_format = data_format
-        if self.data_format not in ["channels_last", "channels_first"]:
-            raise ValueError(f"not support data format '{self.data_format}'")
-        self.normalized_shape = (normalized_shape,)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.data_format == "channels_last":
-            return F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
-        elif self.data_format == "channels_first":
-            # [batch_size, channels, height, width]
-            mean = x.mean(1, keepdim=True)
-            var = (x - mean).pow(2).mean(1, keepdim=True)
-            x = (x - mean) / torch.sqrt(var + self.eps)
-            x = self.weight[:, None, None] * x + self.bias[:, None, None]
-            return x
-
-
-class CNXBlk(nn.Module):
-    r""" ConvNeXt Block. There are two equivalent implementations:
-    (1) DwConv -> LayerNorm (channels_first) -> 1x1 Conv -> GELU -> 1x1 Conv; all in (N, C, H, W)
-    (2) DwConv -> Permute to (N, H, W, C); LayerNorm (channels_last) -> Linear -> GELU -> Linear; Permute back
-    We use (2) as we find it slightly faster in PyTorch
-    Args:
-        channel_in (int): Number of input channels.
-        channel_out (int): Number of output channels.
-        drop_rate (float): Stochastic depth rate. Default: 0.0
-        layer_scale_init_value (float): Init value for Layer Scale. Default: 1e-6.
-    """
-    def __init__(self, channel_in=64, channel_out=64, drop_rate=0., layer_scale_init_value=1e-6, groups=0):
-        super(CNXBlk, self).__init__()
-        if groups == 0:
-            groups = channel_in
-        self.dwconv = nn.Conv2d(channel_in, channel_in, kernel_size=7, padding=3, groups=groups)  # depthwise conv
-        self.norm = LayerNorm(channel_in, eps=1e-6, data_format="channels_last")
-        self.pwconv1 = nn.Linear(channel_in, 4 * channel_in)  # pointwise/1x1 convs, implemented with linear layers
-        self.act = nn.GELU()
-        self.pwconv2 = nn.Linear(4 * channel_in, channel_in)
-        self.gamma = nn.Parameter(layer_scale_init_value * torch.ones((channel_in,)),
-                                  requires_grad=True) if layer_scale_init_value > 0 else None
-        self.drop_path = DropPath(drop_rate) if drop_rate > 0. else nn.Identity()
-        self.conv_channel = nn.Conv2d(channel_in, channel_out, 1, 1, 0)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        shortcut = x
-        x = self.dwconv(x)
-        x = x.permute(0, 2, 3, 1)  # [N, C, H, W] -> [N, H, W, C]
-        x = self.norm(x)
-        x = self.pwconv1(x)
-        x = self.act(x)
-        x = self.pwconv2(x)
-        if self.gamma is not None:
-            x = self.gamma * x
-        x = x.permute(0, 3, 1, 2)  # [N, H, W, C] -> [N, C, H, W]
-
-        x = shortcut + self.drop_path(x)
-        x = self.conv_channel(x)
-        return x
-
-
 class ResBlk(nn.Module):
     def __init__(self, channel_in=64, channel_out=64, groups=0):
         super(ResBlk, self).__init__()
         self.conv_in = nn.Conv2d(channel_in, 64, 3, 1, 1)
         self.relu_in = nn.ReLU(inplace=True)
+        if config.dec_att == 'ASPP':
+            self.dec_att = ASPP(channel_in=64)
         self.conv_out = nn.Conv2d(64, channel_out, 3, 1, 1)
         if config.use_bn:
             self.bn_in = nn.BatchNorm2d(64)
@@ -127,10 +29,68 @@ class ResBlk(nn.Module):
         if config.use_bn:
             x = self.bn_in(x)
         x = self.relu_in(x)
+        if config.dec_att:
+            x = self.dec_att(x)
         x = self.conv_out(x)
         if config.use_bn:
             x = self.bn_out(x)
         return x
+
+
+class _ASPPModule(nn.Module):
+    def __init__(self, channel_in, planes, kernel_size, padding, dilation):
+        super(_ASPPModule, self).__init__()
+        self.atrous_conv = nn.Conv2d(channel_in, planes, kernel_size=kernel_size,
+                                            stride=1, padding=padding, dilation=dilation, bias=False)
+        self.bn = nn.BatchNorm2d(planes)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        x = self.atrous_conv(x)
+        x = self.bn(x)
+
+        return self.relu(x)
+
+class ASPP(nn.Module):
+    def __init__(self, channel_in=64, output_stride=16):
+        super(ASPP, self).__init__()
+        self.down_scale = 1
+        self.channel_inter = 256 // self.down_scale
+        if output_stride == 16:
+            dilations = [1, 6, 12, 18]
+        elif output_stride == 8:
+            dilations = [1, 12, 24, 36]
+        else:
+            raise NotImplementedError
+
+        self.aspp1 = _ASPPModule(channel_in, self.channel_inter, 1, padding=0, dilation=dilations[0])
+        self.aspp2 = _ASPPModule(channel_in, self.channel_inter, 3, padding=dilations[1], dilation=dilations[1])
+        self.aspp3 = _ASPPModule(channel_in, self.channel_inter, 3, padding=dilations[2], dilation=dilations[2])
+        self.aspp4 = _ASPPModule(channel_in, self.channel_inter, 3, padding=dilations[3], dilation=dilations[3])
+
+        self.global_avg_pool = nn.Sequential(nn.AdaptiveAvgPool2d((1, 1)),
+                                             nn.Conv2d(channel_in, self.channel_inter, 1, stride=1, bias=False),
+                                             nn.BatchNorm2d(self.channel_inter),
+                                             nn.ReLU(inplace=True))
+        self.conv1 = nn.Conv2d(self.channel_inter * 5, channel_in, 1, bias=False)
+        self.bn1 = nn.BatchNorm2d(channel_in)
+        self.relu = nn.ReLU(inplace=True)
+        self.dropout = nn.Dropout(0.5)
+
+    def forward(self, x):
+        x1 = self.aspp1(x)
+        x2 = self.aspp2(x)
+        x3 = self.aspp3(x)
+        x4 = self.aspp4(x)
+        x5 = self.global_avg_pool(x)
+        x5 = F.interpolate(x5, size=x4.size()[2:], mode='bilinear', align_corners=True)
+        x = torch.cat((x1, x2, x3, x4, x5), dim=1)
+
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+
+        return self.dropout(x)
 
 
 class GWM(nn.Module):

@@ -2,8 +2,8 @@
 # Run script
 method="$1"
 size=256
-epochs=350
-val_last=100
+epochs=150
+val_last=50
 
 # Train
 CUDA_VISIBLE_DEVICES=$2 python train.py --trainset DUTS_class+coco-seg --size ${size} --ckpt_dir ckpt/${method} --epochs ${epochs}

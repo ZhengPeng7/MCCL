@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torchvision.models import vgg16, vgg16_bn
 from torchvision.models import resnet50
 
-from models.modules import CNXBlk, ResBlk, CoAttLayer, GWM, SGS
+from models.modules import ResBlk, CoAttLayer, GWM, SGS
 from models.pvt import pvt_v2_b2
 from config import Config
 
@@ -67,8 +67,6 @@ class GCoNet(nn.Module):
 
         if self.config.dec_blk == 'ResBlk':
             DecBlk = ResBlk
-        elif self.config.dec_blk == 'CNXBlk':
-            DecBlk = CNXBlk
 
         self.top_layer = DecBlk(lateral_channels_in[bb][0], lateral_channels_in[bb][1])
 
