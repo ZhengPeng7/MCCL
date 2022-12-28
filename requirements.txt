@@ -1,4 +1,5 @@
 opencv-python
+scipy
 matplotlib
 tqdm
 fvcore
