@@ -1,7 +1,7 @@
 ## Memory-aided Contrastive Consensus Learning for Co-salient Object Detection
 
-> [**Memory-aided Contrastive Consensus Learning for Co-salient Object Detection**](#),
-> Peng Zheng, Jie Qin, Shuo Wang, Tian-Zhu Xiang, Huan Xiong
+> [**Memory-aided Contrastive Consensus Learning for Co-salient Object Detection**](#)  
+> Peng Zheng, Jie Qin, Shuo Wang, Tian-Zhu Xiang, Huan Xiong  
 > *AAAI2023 ([AAAI](#), [arXiv](#))*
 
 ### Overview
