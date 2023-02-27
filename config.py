@@ -90,7 +90,7 @@ class Config():
 
         self.validation = False
         self.rand_seed = 7
-        run_sh_file = [f for f in os.listdir('.') if 'gco' in f and '.sh' in f] + [os.path.join('..', f) for f in os.listdir('..') if 'gco' in f and '.sh' in f]
+        run_sh_file = [f for f in os.listdir('.') if 'go' in f and '.sh' in f] + [os.path.join('..', f) for f in os.listdir('..') if 'gco' in f and '.sh' in f]
         with open(run_sh_file[0], 'r') as f:
             lines = f.readlines()
             self.val_last = int([l.strip() for l in lines if 'val_last=' in l][0].split('=')[-1])
