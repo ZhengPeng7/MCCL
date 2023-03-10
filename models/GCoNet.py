@@ -1,3 +1,4 @@
+import os
 from collections import OrderedDict
 import torch
 from torch.functional import norm
@@ -43,11 +44,16 @@ class GCoNet(nn.Module):
         elif bb == 'trans-pvt':
             self.bb = pvt_v2_b2()
             if self.config.pvt_weights:
-                save_model = torch.load(self.config.pvt_weights)
-                model_dict = self.bb.state_dict()
-                state_dict = {k: v for k, v in save_model.items() if k in model_dict.keys()}
-                model_dict.update(state_dict)
-                self.bb.load_state_dict(model_dict)
+                if os.path.exists(self.config.pvt_weights):
+                    save_model = torch.load(self.config.pvt_weights)
+                    model_dict = self.bb.state_dict()
+                    state_dict = {k: v for k, v in save_model.items() if k in model_dict.keys()}
+                    model_dict.update(state_dict)
+                    self.bb.load_state_dict(model_dict)
+                else:
+                    print("Warning: We cannot load the PVT backbone weights.")
+                    print("\tIf you are testing/eval, it's okay.")
+                    print("\tIf you are training, save it at {}.".format(self.config.pvt_weights))
 
         if 'cnn-' in bb:
             self.bb = nn.Sequential(bb_convs)
