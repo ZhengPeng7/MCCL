@@ -1,6 +1,6 @@
-## Memory-aided Contrastive Consensus Learning for Co-salient Object Detection
+## Memory-Aided Contrastive Consensus Learning for Co-salient Object Detection
 
-> [**Memory-aided Contrastive Consensus Learning for Co-salient Object Detection**](https://arxiv.org/abs/2302.14485)  
+> [**Memory-Aided Contrastive Consensus Learning for Co-salient Object Detection**](https://arxiv.org/abs/2302.14485)  
 > Peng Zheng, Jie Qin, Shuo Wang, Tian-Zhu Xiang, Huan Xiong  
 > *AAAI2023 ([AAAI](#), [arXiv](https://arxiv.org/abs/2302.14485))*
 
@@ -40,7 +40,7 @@ We highly recommend use the metric codes from [py_sod_metrics](https://github.co
 
 ```
 @inproceedings{zheng2022mccl,
-  title = {Group Collaborative Learning for Co-Salient Object Detection},
+  title = {Memory-Aided Contrastive Consensus Learning for Co-salient Object Detection},
   author = {Zheng Peng, Qin Jie, Wang Shuo, Xiang Tian-Zhu and Xiong Huan},
   booktitle = {AAAI},
   year = {2023}
