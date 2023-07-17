@@ -2,7 +2,7 @@
 
 > [**Memory-Aided Contrastive Consensus Learning for Co-salient Object Detection**](https://arxiv.org/abs/2302.14485)  
 > Peng Zheng, Jie Qin, Shuo Wang, Tian-Zhu Xiang, Huan Xiong  
-> *AAAI2023 ([AAAI](#), [arXiv](https://arxiv.org/abs/2302.14485))*
+> *AAAI2023 ([AAAI](https://ojs.aaai.org/index.php/AAAI/article/view/25480), [arXiv](https://arxiv.org/abs/2302.14485))*
 
 ### Overview
 
