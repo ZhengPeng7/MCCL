@@ -48,7 +48,7 @@ We highly recommend use the metric codes from [py_sod_metrics](https://github.co
 @inproceedings{zheng2022mccl,
   title = {Memory-Aided Contrastive Consensus Learning for Co-salient Object Detection},
   author = {Zheng Peng, Qin Jie, Wang Shuo, Xiang Tian-Zhu and Xiong Huan},
-  booktitle = {AAAI},
+  booktitle = AAAI,
   year = {2023}
 }
 ```
