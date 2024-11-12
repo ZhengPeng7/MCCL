@@ -4,6 +4,7 @@ import os
 class Config():
     def __init__(self) -> None:
         # Backbone
+        self.proj_root = os.path.expanduser(os.path.join('~'), 'codes/cosod')
         self.bb = ['cnn-vgg16', 'cnn-vgg16bn', 'cnn-resnet50', 'trans-pvt'][3]
         self.pvt_weights = ['../bb_weights/pvt_v2_b2.pth', ''][0]
         # BN
@@ -26,8 +27,8 @@ class Config():
         self.lr_decay_epochs = [-20]    # Set to negative N to decay the lr in the last N-th epoch.
         self.forward_per_dataset = True
         # Adv
-        self.lambda_adv_g = 10. * 1        # turn to 0 to avoid adv training
-        self.lambda_adv_d = 3. * (self.lambda_adv_g > 0)
+        self.lambda_adv_g = 0.1 * 1        # turn to 0 to avoid adv training
+        self.lambda_adv_d = 1. * (self.lambda_adv_g > 0)
         # Loss
         losses = ['sal']
         self.loss = losses[:]

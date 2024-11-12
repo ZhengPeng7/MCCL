@@ -1,6 +1,6 @@
 #!/bin/bash
 # Set dst repo here.
-repo="VS-GCAM_adv_tri3-2"
+repo="${1:-tmp}"
 mkdir ../${repo}
 mkdir ../${repo}/evaluation
 mkdir ../${repo}/models

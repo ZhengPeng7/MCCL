@@ -4,6 +4,7 @@ import argparse
 import prettytable as pt
 
 import metrics as Measure
+from config import Config
 
 
 def evaluator(gt_pth_lst, pred_pth_lst):
@@ -78,14 +79,15 @@ def eval_res(opt, txt_save_path):
 
 
 if __name__ == '__main__':
+    config = Config()
     # set parameters
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--gt_root', type=str, help='ground-truth root',
-        default='/root/autodl-tmp/datasets/sod/gts')
+        default=os.path.join(config.proj_root, 'data/gts'))
     parser.add_argument(
         '--pred_root', type=str, help='prediction root',
-        default='/root/autodl-tmp/datasets/sod/preds')
+        default=os.path.join(config.proj_root, 'preds'))
     parser.add_argument(
         '--data_lst', type=list, help='test dataset',
         default=['CoCA', 'CoSOD3k', 'CoSal2015'])

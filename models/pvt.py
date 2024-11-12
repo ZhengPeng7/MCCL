@@ -1,14 +1,10 @@
+import math
+from functools import partial
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from functools import partial
 
-from timm.models.layers import DropPath, to_2tuple, trunc_normal_
-from timm.models.registry import register_model
-from timm.models.vision_transformer import _cfg
-from timm.models.registry import register_model
+from timm.layers import DropPath, to_2tuple, trunc_normal_
 
-import math
 
 
 class Mlp(nn.Module):
@@ -61,6 +57,7 @@ class Attention(nn.Module):
 
         self.q = nn.Linear(dim, dim, bias=qkv_bias)
         self.kv = nn.Linear(dim, dim * 2, bias=qkv_bias)
+        self.attn_drop_prob = attn_drop
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
@@ -155,7 +152,7 @@ class OverlapPatchEmbed(nn.Module):
     """ Image to Patch Embedding
     """
 
-    def __init__(self, img_size=224, patch_size=7, stride=4, in_chans=3, embed_dim=768):
+    def __init__(self, img_size=224, patch_size=7, stride=4, in_channels=3, embed_dim=768):
         super().__init__()
         img_size = to_2tuple(img_size)
         patch_size = to_2tuple(patch_size)
@@ -164,7 +161,7 @@ class OverlapPatchEmbed(nn.Module):
         self.patch_size = patch_size
         self.H, self.W = img_size[0] // patch_size[0], img_size[1] // patch_size[1]
         self.num_patches = self.H * self.W
-        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=stride,
+        self.proj = nn.Conv2d(in_channels, embed_dim, kernel_size=patch_size, stride=stride,
                               padding=(patch_size[0] // 2, patch_size[1] // 2))
         self.norm = nn.LayerNorm(embed_dim)
 
@@ -195,7 +192,7 @@ class OverlapPatchEmbed(nn.Module):
 
 
 class PyramidVisionTransformerImpr(nn.Module):
-    def __init__(self, img_size=224, patch_size=16, in_chans=3, num_classes=1000, embed_dims=[64, 128, 256, 512],
+    def __init__(self, img_size=224, patch_size=16, in_channels=3, num_classes=1000, embed_dims=[64, 128, 256, 512],
                  num_heads=[1, 2, 4, 8], mlp_ratios=[4, 4, 4, 4], qkv_bias=False, qk_scale=None, drop_rate=0.,
                  attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm,
                  depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1]):
@@ -204,13 +201,13 @@ class PyramidVisionTransformerImpr(nn.Module):
         self.depths = depths
 
         # patch_embed
-        self.patch_embed1 = OverlapPatchEmbed(img_size=img_size, patch_size=7, stride=4, in_chans=in_chans,
+        self.patch_embed1 = OverlapPatchEmbed(img_size=img_size, patch_size=7, stride=4, in_channels=in_channels,
                                               embed_dim=embed_dims[0])
-        self.patch_embed2 = OverlapPatchEmbed(img_size=img_size // 4, patch_size=3, stride=2, in_chans=embed_dims[0],
+        self.patch_embed2 = OverlapPatchEmbed(img_size=img_size // 4, patch_size=3, stride=2, in_channels=embed_dims[0],
                                               embed_dim=embed_dims[1])
-        self.patch_embed3 = OverlapPatchEmbed(img_size=img_size // 8, patch_size=3, stride=2, in_chans=embed_dims[1],
+        self.patch_embed3 = OverlapPatchEmbed(img_size=img_size // 8, patch_size=3, stride=2, in_channels=embed_dims[1],
                                               embed_dim=embed_dims[2])
-        self.patch_embed4 = OverlapPatchEmbed(img_size=img_size // 16, patch_size=3, stride=2, in_chans=embed_dims[2],
+        self.patch_embed4 = OverlapPatchEmbed(img_size=img_size // 16, patch_size=3, stride=2, in_channels=embed_dims[2],
                                               embed_dim=embed_dims[3])
 
         # transformer encoder
@@ -304,14 +301,6 @@ class PyramidVisionTransformerImpr(nn.Module):
         self.num_classes = num_classes
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
-    # def _get_pos_embed(self, pos_embed, patch_embed, H, W):
-    #     if H * W == self.patch_embed1.num_patches:
-    #         return pos_embed
-    #     else:
-    #         return F.interpolate(
-    #             pos_embed.reshape(1, patch_embed.H, patch_embed.W, -1).permute(0, 3, 1, 2),
-    #             size=(H, W), mode="bilinear").reshape(1, -1, H * W).permute(0, 2, 1)
-
     def forward_features(self, x):
         B = x.shape[0]
         outs = []
@@ -366,7 +355,7 @@ class DWConv(nn.Module):
 
     def forward(self, x, H, W):
         B, N, C = x.shape
-        x = x.transpose(1, 2).view(B, C, H, W)
+        x = x.transpose(1, 2).view(B, C, H, W).contiguous()
         x = self.dwconv(x)
         x = x.flatten(2).transpose(1, 2)
 
@@ -384,7 +373,6 @@ def _conv_filter(state_dict, patch_size=16):
     return out_dict
 
 
-@register_model
 class pvt_v2_b0(PyramidVisionTransformerImpr):
     def __init__(self, **kwargs):
         super(pvt_v2_b0, self).__init__(
@@ -393,8 +381,6 @@ class pvt_v2_b0(PyramidVisionTransformerImpr):
             drop_rate=0.0, drop_path_rate=0.1)
 
 
-
-@register_model
 class pvt_v2_b1(PyramidVisionTransformerImpr):
     def __init__(self, **kwargs):
         super(pvt_v2_b1, self).__init__(
@@ -402,15 +388,15 @@ class pvt_v2_b1(PyramidVisionTransformerImpr):
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)
 
-@register_model
+
 class pvt_v2_b2(PyramidVisionTransformerImpr):
-    def __init__(self, **kwargs):
+    def __init__(self, in_channels=3, **kwargs):
         super(pvt_v2_b2, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[8, 8, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1],
-            drop_rate=0.0, drop_path_rate=0.1)
+            drop_rate=0.0, drop_path_rate=0.1, in_channels=in_channels)
 
-@register_model
+
 class pvt_v2_b3(PyramidVisionTransformerImpr):
     def __init__(self, **kwargs):
         super(pvt_v2_b3, self).__init__(
@@ -418,7 +404,7 @@ class pvt_v2_b3(PyramidVisionTransformerImpr):
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 18, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1)
 
-@register_model
+
 class pvt_v2_b4(PyramidVisionTransformerImpr):
     def __init__(self, **kwargs):
         super(pvt_v2_b4, self).__init__(
@@ -427,7 +413,6 @@ class pvt_v2_b4(PyramidVisionTransformerImpr):
             drop_rate=0.0, drop_path_rate=0.1)
 
 
-@register_model
 class pvt_v2_b5(PyramidVisionTransformerImpr):
     def __init__(self, **kwargs):
         super(pvt_v2_b5, self).__init__(

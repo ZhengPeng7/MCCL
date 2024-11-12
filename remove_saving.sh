@@ -9,3 +9,4 @@ rm *.out
 # Eval
 rm -r evaluation/eval-*
 
+clear

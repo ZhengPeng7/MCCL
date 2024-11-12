@@ -53,7 +53,7 @@ args = parser.parse_args()
 config = Config()
 
 # Prepare dataset
-root_dir = '/root/autodl-tmp/datasets/sod'
+root_dir = os.path.join(config.proj_root, 'data')
 if 'DUTS_class' in args.trainset.split('+'):
     train_img_path = os.path.join(root_dir, 'images/DUTS_class')
     train_gt_path = os.path.join(root_dir, 'gts/DUTS_class')
@@ -103,7 +103,7 @@ if 'coco-9k' in args.trainset.split('+'):
 test_loaders = {}
 for testset in args.testsets.split('+'):
     test_loader = get_loader(
-        os.path.join('/root/autodl-tmp/datasets/sod', 'images', testset), os.path.join('/root/autodl-tmp/datasets/sod', 'gts', testset),
+        os.path.join(root_dir, 'images', testset), os.path.join(root_dir, 'gts', testset),
         args.size, 1, istrain=False, shuffle=False, num_workers=8, pin=True
     )
     test_loaders[testset] = test_loader
@@ -141,9 +141,9 @@ if config.lambda_adv_g:
     Tensor = torch.cuda.FloatTensor if (True if torch.cuda.is_available() else False) else torch.FloatTensor
     adv_criterion = nn.BCELoss()
     if config.optimizer == 'AdamW':
-        optimizer_d = optim.AdamW(params=model.parameters(), lr=config.lr, weight_decay=1e-2)
+        optimizer_d = optim.AdamW(params=disc.parameters(), lr=config.lr, weight_decay=1e-2)
     elif config.optimizer == 'Adam':
-        optimizer_d = optim.Adam(params=model.parameters(), lr=config.lr, weight_decay=0)
+        optimizer_d = optim.Adam(params=disc.parameters(), lr=config.lr, weight_decay=0)
     lr_scheduler_d = torch.optim.lr_scheduler.MultiStepLR(
         optimizer_d,
         milestones=[lde if lde > 0 else args.epochs + lde for lde in config.lr_decay_epochs],
